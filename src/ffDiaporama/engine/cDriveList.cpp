@@ -27,12 +27,6 @@
 #include <QDir>
 #include <QFile>
 
-#ifdef Q_OS_WIN
-    #include <windows.h>
-    #include <QSettings>
-    #include <lmcons.h>
-#endif
-
 QString PersonalFolder          ="";
 QString DefaultMediaPath        ="";           // default folder for image/video
 QString DefaultMusicPath        ="";           // default folder for music
@@ -49,27 +43,6 @@ QString CAF                     ="";
 QString MFD                     ="";
 
 //*******************************************************************************************************************************************************
-
-#ifdef Q_OS_WIN
-    bool IsDriveAvailable(QString Path) {
-        Path.replace("/","\\");
-
-        WCHAR       Drive[256+1];
-        WCHAR       VolumeName[256+1];
-        WCHAR       SysName[256+1];
-        DWORD       SerialNumber;
-        DWORD       MaxComponent;
-        DWORD       FileSysFlag;
-
-        QString PhysicalPath=Path;
-        if ((PhysicalPath[1]==':')&&(PhysicalPath[2]=='\\')) PhysicalPath=PhysicalPath.left(3);
-        MultiByteToWideChar(CP_ACP,0,PhysicalPath.toLocal8Bit(),-1,Drive,256+1);
-        if (((GetDriveType(Drive)==DRIVE_REMOVABLE)||(GetDriveType(Drive)==DRIVE_CDROM))&&
-            (!GetVolumeInformation(Drive,VolumeName,sizeof(WCHAR)*(256+1),&SerialNumber,&MaxComponent,&FileSysFlag,SysName,sizeof(WCHAR)*(256+1))))
-                return false;
-        return true;
-    }
-#endif
 
 cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *ApplicationConfig) {
     Flag        =2;         // New DriveDesc
@@ -96,176 +69,138 @@ cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *Applica
     }
 
     // Adjust path depending on Operating System
-    #ifdef Q_OS_WIN
-        Path.replace("/","\\");
+    bool        IsOk=true;
 
-        WCHAR       Drive[256+1];
-        WCHAR       VolumeName[256+1];
-        WCHAR       SysName[256+1];
-        DWORD       SerialNumber;
-        DWORD       MaxComponent;
-        DWORD       FileSysFlag;
+    QProcess    Process;
+    Process.setProcessChannelMode(QProcess::MergedChannels);
 
-        QString PhysicalPath=Path;
-        if ((PhysicalPath[1]==':')&&(PhysicalPath[2]=='\\')) PhysicalPath=PhysicalPath.left(3);
-        MultiByteToWideChar(CP_ACP,0,PhysicalPath.toLocal8Bit(),-1,Drive,256+1);
-        switch (GetDriveType(Drive)) {
-            case DRIVE_CDROM     :  IconDrive=ApplicationConfig->DefaultCDROMIcon.GetIcon(cCustomIcon::ICON16)->copy();  IsReadOnly=true;       break;
-            case DRIVE_REMOTE    :  IconDrive=ApplicationConfig->DefaultREMOTEIcon.GetIcon(cCustomIcon::ICON16)->copy();                        break;
-            case DRIVE_REMOVABLE :  IconDrive=ApplicationConfig->DefaultREMOTEIcon.GetIcon(cCustomIcon::ICON16)->copy();                        break;
-            default              :  if (IconDrive.isNull()) IconDrive=ApplicationConfig->DefaultHDDIcon.GetIcon(cCustomIcon::ICON16)->copy();   break;
-        }
-        if (GetVolumeInformation(Drive,VolumeName,sizeof(WCHAR)*(256+1),&SerialNumber,&MaxComponent,&FileSysFlag,SysName,sizeof(WCHAR)*(256+1))) {
-            if (Label=="") {
-                Label=Path;
-                if (QString().fromWCharArray(VolumeName)!="") Label=Label+"["+QString().fromWCharArray(VolumeName)+"]";
-            }
-            _ULARGE_INTEGER Available,FullSize,TotalNumberOfFreeBytes;
-            if (GetDiskFreeSpaceEx(Drive,&Available,&FullSize,&TotalNumberOfFreeBytes)) {
-                Avail   =Available.QuadPart;
-                Size    =FullSize.QuadPart;
-                Used    =Size-TotalNumberOfFreeBytes.QuadPart;
-            }
-        } else {
-            // Must be a CD/DVD ROM drive without disk
-            if ((Label!=PersonalFolder)&&(Label!=QApplication::translate("QCustomFolderTree","Clipart")))
-                Label=Path+"["+QApplication::translate("QCustomFolderTree","Empty drive...")+"]";
-        }
+    if (Path=="") Process.start("df", QStringList() << Device); else Process.start("df", QStringList() << Path);
 
-    #elif defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        bool        IsOk=true;
+    // use df to get information on drive (size/used/avail) and ensure drive is mounted
+    if (!Process.waitForStarted()) {
+        ToLog(LOGMSG_CRITICAL,"Impossible to execute df");
+        IsOk=false;
+    } else if (!Process.waitForFinished()) {
+        Process.kill();
+        ToLog(LOGMSG_CRITICAL,"Error during mount df");
+        IsOk=false;
+    }
+    if (IsOk && (Process.exitStatus()<0)) {
+        ToLog(LOGMSG_CRITICAL,"mount return df");
+        IsOk=false;
+    }
+    if (!IsOk) {
+        Process.terminate();
+        Process.close();
+    } else {
+        QString Part=QString().fromLocal8Bit(Process.readAllStandardOutput());
+        Process.terminate();
+        Process.close();
 
-        QProcess    Process;
-        Process.setProcessChannelMode(QProcess::MergedChannels);
+        // First line is the header => then pass it :
+        Part=Part.mid(Part.indexOf("\n")+QString("\n").length());
 
-        if (Path=="") Process.start("df "+Device); else Process.start("df "+Path);
+        // Second line contains information we whant like Device | Size | Used | Avail | Mount path
+        // If Mount path = asked path then drive is mounted !
 
-        // use df to get information on drive (size/used/avail) and ensure drive is mounted
-        if (!Process.waitForStarted()) {
-            ToLog(LOGMSG_CRITICAL,"Impossible to execute df");
-            IsOk=false;
-        } else if (!Process.waitForFinished()) {
-            Process.kill();
-            ToLog(LOGMSG_CRITICAL,"Error during mount df");
-            IsOk=false;
-        }
-        if (IsOk && (Process.exitStatus()<0)) {
-            ToLog(LOGMSG_CRITICAL,"mount return df");
-            IsOk=false;
-        }
-        if (!IsOk) {
-            Process.terminate();
-            Process.close();
-        } else {
-            QString Part=QString().fromLocal8Bit(Process.readAllStandardOutput());
-            Process.terminate();
-            Process.close();
+        if (Part.indexOf(" ")!=-1) {
+            Device=Part.left(Part.indexOf(" "));
+            Part  =Part.mid(Part.indexOf(" ")).trimmed();
 
-            // First line is the header => then pass it :
-            Part=Part.mid(Part.indexOf("\n")+QString("\n").length());
-
-            // Second line contains information we whant like Device | Size | Used | Avail | Mount path
-            // If Mount path = asked path then drive is mounted !
-
+            // Next is size
             if (Part.indexOf(" ")!=-1) {
-                Device=Part.left(Part.indexOf(" "));
-                Part  =Part.mid(Part.indexOf(" ")).trimmed();
+                Size=Part.left(Part.indexOf(" ")).toLongLong();
+                Part=Part.mid(Part.indexOf(" ")).trimmed();
 
-                // Next is size
+                // Next is used
                 if (Part.indexOf(" ")!=-1) {
-                    Size=Part.left(Part.indexOf(" ")).toLongLong();
+                    Used=Part.left(Part.indexOf(" ")).toLongLong();
                     Part=Part.mid(Part.indexOf(" ")).trimmed();
 
-                    // Next is used
-                    if (Part.indexOf(" ")!=-1) {
-                        Used=Part.left(Part.indexOf(" ")).toLongLong();
-                        Part=Part.mid(Part.indexOf(" ")).trimmed();
+                    // Next is avail
+                    Avail=Part.left(Part.indexOf(" ")).toLongLong();
+                    Part=Part.mid(Part.indexOf(" ")).trimmed();
 
-                        // Next is avail
-                        Avail=Part.left(Part.indexOf(" ")).toLongLong();
-                        Part=Part.mid(Part.indexOf(" ")).trimmed();
+                    // Next is Pct Use
 
-                        // Next is Pct Use
-
-                        // and finaly : the mounted path
-                        if (Path=="") Path =Part.mid(Part.indexOf(" ")).trimmed();
-                    }
+                    // and finaly : the mounted path
+                    if (Path=="") Path =Part.mid(Part.indexOf(" ")).trimmed();
                 }
             }
         }
+    }
 
-        // Get drive type
-        if ((Path!="")&&(Device!="")) {
-            if (Path=="/") {
-                IconDrive   =QApplication::style()->standardIcon(QStyle::SP_ComputerIcon).pixmap(16,16).toImage();
-            } else if (Device.startsWith("/dev/sr") || Device.startsWith("/dev/scd")) {
-                IconDrive   =ApplicationConfig->DefaultCDROMIcon.GetIcon(cCustomIcon::ICON16)->copy();
-                IsReadOnly  =true;
+    // Get drive type
+    if ((Path!="")&&(Device!="")) {
+        if (Path=="/") {
+            IconDrive   =QApplication::style()->standardIcon(QStyle::SP_ComputerIcon).pixmap(16,16).toImage();
+        } else if (Device.startsWith("/dev/sr") || Device.startsWith("/dev/scd")) {
+            IconDrive   =ApplicationConfig->DefaultCDROMIcon.GetIcon(cCustomIcon::ICON16)->copy();
+            IsReadOnly  =true;
+        } else {
+            // use dmesg to get drive type
+
+            QProcess    Process;
+            bool        IsOk=true;
+
+            Process.setProcessChannelMode(QProcess::MergedChannels);
+            Process.start("dmesg", QStringList());
+            if (!Process.waitForStarted()) {
+                ToLog(LOGMSG_CRITICAL,"Impossible to execute dmesg");
+                IsOk=false;
+            }
+            if (IsOk && !Process.waitForFinished()) {
+                Process.kill();
+                ToLog(LOGMSG_CRITICAL,"Error during mount dmesg");
+                IsOk=false;
+            }
+            if (IsOk && (Process.exitStatus()<0)) {
+                ToLog(LOGMSG_CRITICAL,"mount return dmesg");
+                IsOk=false;
+            }
+            if (!IsOk) {
+                Process.terminate();
+                Process.close();
             } else {
-                // use dmesg to get drive type
+                QString DmesgInfo=QString().fromLocal8Bit(Process.readAllStandardOutput());
+                Process.terminate();
+                Process.close();
 
-                QProcess    Process;
-                bool        IsOk=true;
+                // line we search is like "[dev without number] Attached"
+                QString ToFind=Device.mid(QString("/dev/").length());
+                if (!ToFind.isEmpty()) {
+                    if ((ToFind[ToFind.length()-1]>='0')&&(ToFind[ToFind.length()-1]<='9')) ToFind=ToFind.left(ToFind.length()-1);
+                    ToFind="["+ToFind+"] Attached";
 
-                Process.setProcessChannelMode(QProcess::MergedChannels);
-                Process.start("dmesg");
-                if (!Process.waitForStarted()) {
-                    ToLog(LOGMSG_CRITICAL,"Impossible to execute dmesg");
-                    IsOk=false;
-                }
-                if (IsOk && !Process.waitForFinished()) {
-                    Process.kill();
-                    ToLog(LOGMSG_CRITICAL,"Error during mount dmesg");
-                    IsOk=false;
-                }
-                if (IsOk && (Process.exitStatus()<0)) {
-                    ToLog(LOGMSG_CRITICAL,"mount return dmesg");
-                    IsOk=false;
-                }
-                if (!IsOk) {
-                    Process.terminate();
-                    Process.close();
-                } else {
-                    QString DmesgInfo=QString().fromLocal8Bit(Process.readAllStandardOutput());
-                    Process.terminate();
-                    Process.close();
-
-                    // line we search is like "[dev without number] Attached"
-                    QString ToFind=Device.mid(QString("/dev/").length());
-                    if (!ToFind.isEmpty()) {
-                        if ((ToFind[ToFind.length()-1]>='0')&&(ToFind[ToFind.length()-1]<='9')) ToFind=ToFind.left(ToFind.length()-1);
-                        ToFind="["+ToFind+"] Attached";
-
-                        // Parse all line in Dmesg to try find line containing "[dev without number] Attached"
-                        QString DriveTypeStr;
-                        QString DmesgLine;
-                        while (DmesgInfo!="") {
-                            if (DmesgInfo.indexOf("\n")!=-1) {
-                                DmesgLine=DmesgInfo.left(DmesgInfo.indexOf("\n"));
-                                DmesgInfo=DmesgInfo.mid(DmesgInfo.indexOf("\n")+QString("\n").length());
-                            } else {
-                                DmesgLine=DmesgInfo;
-                                DmesgInfo="";
-                            }
-                            if (DmesgLine.indexOf(ToFind)!=-1) DriveTypeStr=DmesgLine.mid(DmesgLine.indexOf(ToFind)+ToFind.length()+1);
+                    // Parse all line in Dmesg to try find line containing "[dev without number] Attached"
+                    QString DriveTypeStr;
+                    QString DmesgLine;
+                    while (DmesgInfo!="") {
+                        if (DmesgInfo.indexOf("\n")!=-1) {
+                            DmesgLine=DmesgInfo.left(DmesgInfo.indexOf("\n"));
+                            DmesgInfo=DmesgInfo.mid(DmesgInfo.indexOf("\n")+QString("\n").length());
+                        } else {
+                            DmesgLine=DmesgInfo;
+                            DmesgInfo="";
                         }
-                        if (DriveTypeStr=="SCSI removable disk") IconDrive=ApplicationConfig->DefaultHDDIcon.GetIcon(cCustomIcon::ICON16)->copy();
+                        if (DmesgLine.indexOf(ToFind)!=-1) DriveTypeStr=DmesgLine.mid(DmesgLine.indexOf(ToFind)+ToFind.length()+1);
                     }
+                    if (DriveTypeStr=="SCSI removable disk") IconDrive=ApplicationConfig->DefaultHDDIcon.GetIcon(cCustomIcon::ICON16)->copy();
                 }
             }
-
-            if (!Path.endsWith(QDir::separator())) Path=Path+QDir::separator();
-            if (IconDrive.isNull()) IconDrive=ApplicationConfig->DefaultHDDIcon.GetIcon(cCustomIcon::ICON16)->copy();
         }
 
-        Path.replace("\\","/");
-        if (Alias!="") Label=Alias; else if ((Path.length()>2)&&(Path.mid(1).indexOf("/")!=-1)) {
-            Label=Path;
-            if (Label.endsWith("/")) Label=Label.left(Label.length()-QString("/").length());
-            // On some linux, removeable media are mounted in /media/<user>/ instead of /media/
-            while (Label.indexOf("/")!=-1) Label=Label.mid(Label.indexOf("/")+QString("/").length());
-        }
-    #endif
+        if (!Path.endsWith(QDir::separator())) Path=Path+QDir::separator();
+        if (IconDrive.isNull()) IconDrive=ApplicationConfig->DefaultHDDIcon.GetIcon(cCustomIcon::ICON16)->copy();
+    }
+
+    Path.replace("\\","/");
+    if (Alias!="") Label=Alias; else if ((Path.length()>2)&&(Path.mid(1).indexOf("/")!=-1)) {
+        Label=Path;
+        if (Label.endsWith("/")) Label=Label.left(Label.length()-QString("/").length());
+        // On some linux, removeable media are mounted in /media/<user>/ instead of /media/
+        while (Label.indexOf("/")!=-1) Label=Label.mid(Label.indexOf("/")+QString("/").length());
+    }
 
     // Check if there is an autorun.inf, a desktop.ini or folder.jpg
     if (Path!="") {
@@ -277,17 +212,10 @@ cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *Applica
                 if (FileIO.open(QIODevice::ReadOnly|QIODevice::Text)) {
                     QTextStream FileST(&FileIO);
                     while (!FileST.atEnd()) {
-                        QString Line=FileST.readLine();
-                        Line.trimmed();
+                        QString Line=FileST.readLine().trimmed();
                         if ((Line.toUpper().startsWith("ICON"))&&(Line.indexOf("=")!=-1)) {
                             Line=Line.mid(Line.indexOf("=")+1).trimmed();
                             if (Line.toLower().endsWith(".jpg") || Line.toLower().endsWith(".png") || Line.toLower().endsWith(".ico")) IconDrive=QIcon(QDir::toNativeSeparators(Path+Line)).pixmap(16,16).toImage().copy();
-                            #ifdef Q_OS_WIN
-                            else {
-                                QIcon Ico(GetIconForFileOrDir(QDir::toNativeSeparators(Path+Line),0));
-                                IconDrive=Ico.pixmap(16,16).toImage();
-                            }
-                            #endif
                         }
                     }
                     FileIO.close();
@@ -298,9 +226,6 @@ cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *Applica
                 FileName=FileName+Directorys[j].fileName();
                 QFile   FileIO(FileName);
                 QString IconFile ="";
-                #ifdef Q_OS_WIN
-                int     IconIndex=0;
-                #endif
                 if (FileIO.open(QIODevice::ReadOnly/*|QIODevice::Text*/)) {
                     // Sometimes this kind of files have incorrect line terminator : nor \r\n nor \n
                     QTextStream FileST(&FileIO);
@@ -317,11 +242,6 @@ cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *Applica
                             Line=AllInfo;
                             AllInfo="";
                         }
-                        #ifdef Q_OS_WIN
-                        if ((Line.toUpper().startsWith("ICONINDEX"))&&(Line.indexOf("=")!=-1)) {
-                            IconIndex=Line.mid(Line.indexOf("=")+1).toInt();
-                        } else
-                        #endif
                         if ((Line.toUpper().startsWith("ICONFILE"))&&(Line.indexOf("=")!=-1)) {
                             Line=Line.mid(Line.indexOf("=")+1).trimmed();
                             // Replace all variables like %systemroot%
@@ -341,13 +261,6 @@ cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *Applica
                     QIcon Ico(IconFile);
                     if (!Ico.isNull()) IconDrive=Ico.pixmap(16,16).toImage();
                 }
-
-                #ifdef Q_OS_WIN
-                else {
-                    QIcon Ico=GetIconForFileOrDir(IconFile,IconIndex);
-                    if (!Ico.isNull()) IconDrive=Ico.pixmap(16,16).toImage();
-                }
-                #endif
             } else if (Directorys[j].fileName().toLower()=="folder.jpg") {
                 IconDrive=QImage(Path+Directorys[j].fileName());
             }
@@ -359,15 +272,7 @@ cDriveDesc::cDriveDesc(QString ThePath,QString Alias,cApplicationConfig *Applica
 
 cDriveList::cDriveList(cApplicationConfig *TheApplicationConfig) {
     ApplicationConfig=TheApplicationConfig;
-
-    #ifdef Q_OS_WIN
-    TCHAR winUserName[UNLEN+1]; // UNLEN is defined in LMCONS.H
-    DWORD winUserNameSize = sizeof(winUserName);
-    GetUserName(winUserName,&winUserNameSize);
-    PersonalFolder = QString::fromStdWString(winUserName);
-    #else
     PersonalFolder=QApplication::translate("QCustomFolderTree","Personal folder");
-    #endif
     ClipArtFolder=QDir::toNativeSeparators(QDir::currentPath());
     if (!ClipArtFolder.endsWith(QDir::separator())) ClipArtFolder=ClipArtFolder+QDir::separator();
     ModelFolder=ClipArtFolder;
@@ -397,64 +302,54 @@ void cDriveList::UpdateDriveList() {
 
     if (!SearchDrive(QDir::toNativeSeparators(ClipArtFolder)))    List.append(cDriveDesc(QDir::toNativeSeparators(ClipArtFolder),QApplication::translate("QCustomFolderTree","Clipart"),ApplicationConfig));
     if (!SearchDrive(QDir::toNativeSeparators(QDir::homePath()))) List.append(cDriveDesc(QDir::homePath(),PersonalFolder,ApplicationConfig));
-    #ifdef Q_OS_WIN
-        foreach(QFileInfo drive,QDir::drives()) {
-            QString Path=QDir::toNativeSeparators(drive.filePath());
-            if (((((Path.length()>=3)&&(Path.at(1)==":")&&(Path.at(2)=="\\")&&(Path.at(0)>='C')&&(Path.at(0)<='Z'))||   // If it's a drive
-                   (Path.startsWith("\\\\"))                                                                            // or it's a network path
-                  )&&(!SearchDrive(Path))                                                                               // and it's not yet included
-                )) if (IsDriveAvailable(Path)) List.append(cDriveDesc(Path,"",ApplicationConfig));
-        }
-    #elif defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
+    
+    if (!SearchDrive("/")) List.append(cDriveDesc("/",QApplication::translate("QCustomFolderTree","System files"),ApplicationConfig));
 
-        if (!SearchDrive("/")) List.append(cDriveDesc("/",QApplication::translate("QCustomFolderTree","System files"),ApplicationConfig));
+    // list mounted drives using mount command
+    QProcess    Process;
+    bool        IsOk=true;
+    Process.setProcessChannelMode(QProcess::MergedChannels);
 
-        // list mounted drives using mount command
-        QProcess    Process;
-        bool        IsOk=true;
-        Process.setProcessChannelMode(QProcess::MergedChannels);
+    Process.start("mount", QStringList());
+    if (!Process.waitForStarted()) {
+        ToLog(LOGMSG_CRITICAL,"Impossible to execute mount");
+        IsOk=false;
+    }
+    if (IsOk && !Process.waitForFinished()) {
+        Process.kill();
+        ToLog(LOGMSG_CRITICAL,"Error during mount process");
+        IsOk=false;
+    }
+    if (IsOk && (Process.exitStatus()<0)) {
+        ToLog(LOGMSG_CRITICAL,"mount return error");
+        IsOk=false;
+    }
+    if (!IsOk) {
+        Process.terminate();
+        Process.close();
+    } else {
+        QString Info=QString().fromLocal8Bit(Process.readAllStandardOutput());
+        Process.terminate();
+        Process.close();
 
-        Process.start("mount");
-        if (!Process.waitForStarted()) {
-            ToLog(LOGMSG_CRITICAL,"Impossible to execute mount");
-            IsOk=false;
-        }
-        if (IsOk && !Process.waitForFinished()) {
-            Process.kill();
-            ToLog(LOGMSG_CRITICAL,"Error during mount process");
-            IsOk=false;
-        }
-        if (IsOk && (Process.exitStatus()<0)) {
-            ToLog(LOGMSG_CRITICAL,"mount return error");
-            IsOk=false;
-        }
-        if (!IsOk) {
-            Process.terminate();
-            Process.close();
-        } else {
-            QString Info=QString().fromLocal8Bit(Process.readAllStandardOutput());
-            Process.terminate();
-            Process.close();
-
-            QString InfoLine;
-            while (Info!="") {
-                if (Info.indexOf("\n")!=-1) {
-                    InfoLine=Info.left(Info.indexOf("\n"));
-                    Info    =Info.mid(Info.indexOf("\n")+1);
-                } else {
-                    InfoLine=Info;
-                    Info    ="";
-                }
-                if (InfoLine.indexOf(" ")!=-1) {
-                    QString Device=InfoLine.left(InfoLine.indexOf(" "));
-                    if (Device.startsWith("/dev/")) {
-                        cDriveDesc ToAppend("",Device,ApplicationConfig);
-                        if (ToAppend.Path!="/") if (!SearchDrive(ToAppend.Path)) List.append(ToAppend);
-                    }
+        QString InfoLine;
+        while (Info!="") {
+            if (Info.indexOf("\n")!=-1) {
+                InfoLine=Info.left(Info.indexOf("\n"));
+                Info    =Info.mid(Info.indexOf("\n")+1);
+            } else {
+                InfoLine=Info;
+                Info    ="";
+            }
+            if (InfoLine.indexOf(" ")!=-1) {
+                QString Device=InfoLine.left(InfoLine.indexOf(" "));
+                if (Device.startsWith("/dev/")) {
+                    cDriveDesc ToAppend("",Device,ApplicationConfig);
+                    if (ToAppend.Path!="/") if (!SearchDrive(ToAppend.Path)) List.append(ToAppend);
                 }
             }
         }
-    #endif
+    }
 }
 
 //====================================================================================================================
@@ -464,13 +359,8 @@ void cDriveList::UpdateDriveList() {
 QIcon cDriveList::GetFolderIcon(QString FilePath) {
     if (!FilePath.endsWith(QDir::separator())) FilePath=FilePath+QDir::separator();
 
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     if (FilePath.startsWith("~")) FilePath=QDir::homePath()+FilePath.mid(1);
-    #else
-        if (FilePath.startsWith(PersonalFolder)) FilePath=QDir::homePath()+FilePath.mid(PersonalFolder.length());
-        FilePath=QDir::toNativeSeparators(FilePath);
-    #endif
-
+    
     QIcon   RetIcon;
 
     // Search if it's a root item
@@ -498,9 +388,6 @@ QIcon cDriveList::GetFolderIcon(QString FilePath) {
             FileName=FileName+Directorys[j].fileName();
             QFile   FileIO(FileName);
             QString IconFile ="";
-            #ifdef Q_OS_WIN
-            int     IconIndex=0;
-            #endif
             if (FileIO.open(QIODevice::ReadOnly/*|QIODevice::Text*/)) {
                 // Sometimes this kind of files have incorrect line terminator : nor \r\n nor \n
                 QTextStream FileST(&FileIO);
@@ -517,11 +404,6 @@ QIcon cDriveList::GetFolderIcon(QString FilePath) {
                         Line=AllInfo;
                         AllInfo="";
                     }
-                    #ifdef Q_OS_WIN
-                    if ((Line.toUpper().startsWith("ICONINDEX"))&&(Line.indexOf("=")!=-1)) {
-                        IconIndex=Line.mid(Line.indexOf("=")+1).toInt();
-                    } else
-                    #endif
                     if ((Line.toUpper().startsWith("ICONFILE"))&&(Line.indexOf("=")!=-1)) {
                         Line=Line.mid(Line.indexOf("=")+1).trimmed();
                         // Replace all variables like %systemroot%
@@ -537,9 +419,6 @@ QIcon cDriveList::GetFolderIcon(QString FilePath) {
                 FileIO.close();
             }
             if (IconFile.toLower().endsWith(".jpg") || IconFile.toLower().endsWith(".png") || IconFile.toLower().endsWith(".ico")) RetIcon=QIcon(IconFile);
-            #ifdef Q_OS_WIN
-            else RetIcon=GetIconForFileOrDir(IconFile,IconIndex);
-            #endif
         }
     }
 

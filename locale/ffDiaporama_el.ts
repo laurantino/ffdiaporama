@@ -2075,8 +2075,8 @@ Yellow: The component works partially
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="121"/>
-        <source>LIBAV general version:</source>
-        <translation>Γενική έκδοση LIBAV: </translation>
+        <source>FFMPEG version:</source>
+        <translation>Γενική έκδοση FFMPEG: </translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="145"/>
@@ -8442,8 +8442,8 @@ Do you want to overwrite it?</source>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="188"/>
         <location filename="../src/ffDiaporama/engine/cDeviceModelDef.cpp" line="728"/>
-        <source>Starting libav...</source>
-        <translation>Εκκίνηση του libav...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>Εκκίνηση του ffmpeg...</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="280"/>
@@ -10803,7 +10803,7 @@ Example: if Y=25 % the 1st quarter at the top of the image is eliminated.</sourc
     <message>
         <location filename="../src/ffDiaporama/DlgImage/wgt_QEditVideo/wgt_QEditVideo.cpp" line="162"/>
         <source>Video stream start position is %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Η θέση έναρξης της ροής βίντεο είναι %1</translation>
     </message>
 </context>
 <context>
@@ -11154,7 +11154,7 @@ The blue part represents the part of the video which is selected (which will be 
         <location filename="../src/ffDiaporama/wgt_QVideoPlayer/wgt_QVideoPlayer.ui" line="318"/>
         <source>Change the sound volume</source>
         <extracomment>Tooltip in dialog box</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Ρυθμίστε την ένταση</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/wgt_QVideoPlayer/wgt_QVideoPlayer.ui" line="363"/>

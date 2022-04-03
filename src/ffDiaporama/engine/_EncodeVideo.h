@@ -58,14 +58,16 @@ public:
     qreal               IncreasingVideoPts;
     int64_t             VideoFrameNbr;
     AVStream            *VideoStream;
+    const AVCodec       *VideoCodec;
+    AVCodecContext      *VideoCodecCtx;
     qreal               dFPS;
     int                 InternalWidth,InternalHeight,ExtendV;
     AVFrame             *VideoFrame;
     struct SwsContext   *VideoFrameConverter;           // Converter from QImage to YUV image
-    u_int8_t            *VideoEncodeBuffer;             // Buffer for encoded image
+    uint8_t            *VideoEncodeBuffer;             // Buffer for encoded image
     int                 VideoEncodeBufferSize;          // Buffer for encoded image
     int64_t             VideoFrameBufSize;
-    u_int8_t            *VideoFrameBuf;
+    uint8_t            *VideoFrameBuf;
 
     // Audio parameters & buffers
     int                 AudioChannels;
@@ -77,16 +79,12 @@ public:
     qreal               IncreasingAudioPts;
     int64_t             AudioFrameNbr;
     AVStream            *AudioStream;
+    const AVCodec       *AudioCodec;
+    AVCodecContext      *AudioCodecCtx;
     AVFrame             *AudioFrame;
-    u_int8_t            *AudioResamplerBuffer;          // Buffer for sampled audio
+    uint8_t            *AudioResamplerBuffer;          // Buffer for sampled audio
     int                 AudioResamplerBufferSize;
-    #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-    ReSampleContext         *AudioResampler;            // Audio resampler
-    #elif defined(LIBAV)
-    AVAudioResampleContext  *AudioResampler;
-    #elif defined(FFMPEG)
-    SwrContext              *AudioResampler;
-    #endif
+    SwrContext          *AudioResampler;
 
     // Progress display settings
     bool                StopProcessWanted;              // True if user click on cancel or close during encoding process
@@ -116,7 +114,7 @@ public:
 private:
 
     int             getThreadFlags(AVCodecID ID);
-    bool            AddStream(AVStream **Stream,AVCodec **codec,const char *CodecName,AVMediaType Type);
+    bool            AddStream(AVStream **Stream,const char *CodecName,AVMediaType Type);
     bool            OpenVideoStream(sVideoCodecDef *VideoCodecDef,int VideoCodecSubId,bool VBR,AVRational VideoFrameRate,int ImageWidth,int ImageHeight,AVRational PixelAspectRatio,int VideoBitrate);
     bool            OpenAudioStream(sAudioCodecDef *AudioCodecDef,int &AudioChannels,int &AudioBitrate,int &AudioSampleRate,QString Language);
 

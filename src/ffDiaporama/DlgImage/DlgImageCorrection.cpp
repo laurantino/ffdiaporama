@@ -24,7 +24,6 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QSplashScreen>
-#include <engine/cLocation.h>
 
 int DefaultBackgroundForm=1;
 
@@ -34,7 +33,6 @@ DlgImageCorrection::DlgImageCorrection(cCompositionObject *TheCompoObject,int *T
                                        QCustomDialog(ApplicationConfig,parent),ui(new Ui::DlgImageCorrection) {
     ImageWidget     =NULL;
     VideoWidget     =NULL;
-    GMapsWidget     =NULL;
 
     ui->setupUi(this);
     OkBt            =ui->OKBT;
@@ -72,7 +70,6 @@ void DlgImageCorrection::DoInitDialog() {
         case OBJECTTYPE_IMAGEVECTOR:
         case OBJECTTYPE_IMAGECLIPBOARD: setWindowTitle(QApplication::translate("DlgSlideProperties","Correct or reframe image",                  "Action title in slide edit dialog + dialog title of image edit dialog")); break;
         case OBJECTTYPE_VIDEOFILE:      setWindowTitle(QApplication::translate("DlgSlideProperties","Correct, reframe or cut video",             "Action title in slide edit dialog + dialog title of image edit dialog")); break;
-        case OBJECTTYPE_GMAPSMAP:       setWindowTitle(QApplication::translate("DlgSlideProperties","Correct, reframe or cut a Google Maps map", "Action title in slide edit dialog + dialog title of image edit dialog")); break;
         default: break;
     }
 
@@ -86,12 +83,9 @@ void DlgImageCorrection::DoInitDialog() {
         case OBJECTTYPE_IMAGEFILE:      AllowChangeFile=true;   CreateImageTag(AllowChangeFile);                        break;
         case OBJECTTYPE_IMAGEVECTOR:    AllowChangeFile=true;   CreateImageTag(AllowChangeFile);                        break;
         case OBJECTTYPE_IMAGECLIPBOARD: AllowChangeFile=false;  CreateImageTag(AllowChangeFile);                        break;
-        case OBJECTTYPE_GMAPSMAP:       AllowChangeFile=false;  CreateImageTag(AllowChangeFile);   CreateGMapsTag();    break;
         case OBJECTTYPE_VIDEOFILE:      AllowChangeFile=true;   CreateImageTag(AllowChangeFile);   CreateVideoTag();    break;
         default: break; // To avoid warning
     }
-
-    if (!GMapsWidget) ui->ExportMapBT->setVisible(false);
 
     // Define common handler
     connect(ui->TabWidget,SIGNAL(currentChanged(int)),this,SLOT(s_TabWidgetChanged(int)));
@@ -117,7 +111,7 @@ void DlgImageCorrection::DoPartialUndo() {
             QDomElement root=DomDocument.documentElement();
             if (root.tagName()=="UNDO-DATA") {
                 if (Data.FocusTab) ui->TabWidget->setCurrentIndex(ui->TabWidget->indexOf(Data.FocusTab));
-                ApplyPartialUndo(Data.ActionType,root);
+                ApplyPartialUndo(root);
             }
         }
         if (Data.FocusWindow!=NULL) Data.FocusWindow->setFocus();
@@ -167,12 +161,12 @@ void DlgImageCorrection::PreparePartialUndo(int /*ActionType*/,QDomElement root,
 void DlgImageCorrection::DoGlobalUndo() {
     QDomElement root=Undo->documentElement();
     if (root.tagName()=="UNDO-DLG") CurrentBrush->LoadFromXML(&root,"UNDO-DLG-OBJECT","",NULL,NULL,NULL,false);
-    ApplyPartialUndo(0,root);
+    ApplyPartialUndo(root);
 }
 
 //====================================================================================================================
 
-void DlgImageCorrection::ApplyPartialUndo(int ActionType,QDomElement root) {
+void DlgImageCorrection::ApplyPartialUndo(QDomElement root) {
     QString BrushFileName=root.attribute("BrushFileName");
     *BackgroundForm=root.attribute("BackgroundForm").toInt();
     // load object
@@ -189,7 +183,6 @@ void DlgImageCorrection::ApplyPartialUndo(int ActionType,QDomElement root) {
 
     if ((BrushFileName!=CurrentBrush->MediaObject->FileName())&&(ImageWidget)) ImageWidget->ReloadFile(BrushFileName);
     RefreshControls();
-    if ((GMapsWidget)&&(ActionType==UNDOACTION_GMAPSMAPPART)) GMapsWidget->ResetDisplayMap();
 }
 
 //====================================================================================================================
@@ -214,14 +207,12 @@ void DlgImageCorrection::showEvent(QShowEvent *ev) {
 bool DlgImageCorrection::DoAccept() {
     if (ImageWidget) ImageWidget->DoAccept();
     if (VideoWidget) VideoWidget->DoAccept();
-    if (GMapsWidget) GMapsWidget->DoAccept();
     return true;
 }
 
 void DlgImageCorrection::DoRejet() {
     if (ImageWidget) ImageWidget->DoRejet();
     if (VideoWidget) VideoWidget->DoRejet();
-    if (GMapsWidget) GMapsWidget->DoRejet();
     if (BackgroundForm) *BackgroundForm=SavedBackgroundForm;
 }
 
@@ -233,7 +224,6 @@ void DlgImageCorrection::RefreshControls() {
     // Embeded widget
     if ((ImageWidget)&&(ui->TabWidget->currentWidget()==ImageWidget)) ImageWidget->RefreshControls();
     if ((VideoWidget)&&(ui->TabWidget->currentWidget()==VideoWidget)) VideoWidget->RefreshControls();
-    if ((GMapsWidget)&&(ui->TabWidget->currentWidget()==GMapsWidget)) GMapsWidget->RefreshControls();
 }
 
 //====================================================================================================================
@@ -245,9 +235,6 @@ void DlgImageCorrection::s_TabWidgetChanged(int NewTab) {
 
     if ((VideoWidget)&&(NewTab==ui->TabWidget->indexOf(VideoWidget)))           VideoWidget->WinFocus();
         else if ((VideoWidget)&&(NewTab!=ui->TabWidget->indexOf(VideoWidget)))  VideoWidget->LostFocus();
-
-    if ((GMapsWidget)&&(NewTab==ui->TabWidget->indexOf(GMapsWidget)))           GMapsWidget->WinFocus();
-        else if ((GMapsWidget)&&(NewTab!=ui->TabWidget->indexOf(GMapsWidget)))  GMapsWidget->LostFocus();
 
     RefreshControls();
 }
@@ -281,22 +268,6 @@ void DlgImageCorrection::CreateVideoTag() {
     ui->TabWidget->setTabText(ui->TabWidget->indexOf(VideoWidget),"");
     ui->TabWidget->setCurrentIndex(ui->TabWidget->indexOf(VideoWidget));
     connect(VideoWidget,SIGNAL(DoRefreshImageObject()),SLOT(RefreshImageObject()));
-}
-
-//====================================================================================================================
-
-void DlgImageCorrection::CreateGMapsTag() {
-    GMapsWidget=new wgt_QGMapsMap();
-    GMapsWidget->setObjectName("TabGMaps");
-    GMapsWidget->DoInitWidget(this,ui->ExportMapBT,CurrentBrush);
-    GMapsWidget->DoInitDialog();
-    TabLayout->addWidget(GMapsWidget);
-    QIcon VideoIcon;
-    VideoIcon.addFile(":/img/EditGMaps.png",QSize(),QIcon::Normal,QIcon::Off);
-    ui->TabWidget->addTab(GMapsWidget,VideoIcon,QString());
-    ui->TabWidget->setTabText(ui->TabWidget->indexOf(GMapsWidget),"");
-    ui->TabWidget->setCurrentIndex(ui->TabWidget->indexOf(GMapsWidget));
-    connect(GMapsWidget,SIGNAL(DoRefreshImageObject()),SLOT(RefreshImageObject()));
 }
 
 //====================================================================================================================

@@ -84,13 +84,15 @@ cEncodeVideo::cEncodeVideo() {
     Container               =NULL;
     IsOpen                  =false;
 
-    // Audio buffers
+    // Audio
+    AudioCodecCtx           =NULL;
     AudioStream             =NULL;
     AudioFrame              =NULL;
     AudioResampler          =NULL;
     AudioResamplerBuffer    =NULL;
 
-    //Video buffers
+    //Video
+    VideoCodecCtx           =NULL;
     VideoStream             =NULL;
     VideoEncodeBuffer       =NULL;
     VideoEncodeBufferSize   =40*1024*1024;
@@ -114,23 +116,16 @@ cEncodeVideo::~cEncodeVideo() {
 void cEncodeVideo::CloseEncoder() {
     if (Container) {
         if (IsOpen) {
-            if ((AudioStream)&&(AudioStream->codec->codec_id==AV_CODEC_ID_FLAC)) {
-                AVPacket pkt;
-                int got_packet;
-                av_init_packet(&pkt);
-                pkt.data=NULL;
-                pkt.size=0;
-                pkt.pts =AudioFrameNbr++;
-                pkt.dts =AV_NOPTS_VALUE;
-                avcodec_encode_audio2(AudioStream->codec,&pkt,NULL,&got_packet);
-                avcodec_flush_buffers(AudioStream->codec);
-            }
             av_write_trailer(Container);
             avio_close(Container->pb);
         }
         avformat_free_context(Container);
         Container=NULL;
     }
+    
+    if (VideoCodecCtx) avcodec_free_context(&VideoCodecCtx);
+    if (AudioCodecCtx) avcodec_free_context(&AudioCodecCtx);
+    
     VideoStream=NULL;
     AudioStream=NULL;
 
@@ -138,14 +133,7 @@ void cEncodeVideo::CloseEncoder() {
     if (AudioFrame) av_freep(&AudioFrame);
 
     if (AudioResampler) {
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            audio_resample_close(AudioResampler);
-        #elif defined(LIBAV)
-            avresample_close(AudioResampler);
-            avresample_free(&AudioResampler);
-        #elif defined(FFMPEG)
-            swr_free(&AudioResampler);
-        #endif
+        swr_free(&AudioResampler);
         AudioResampler=NULL;
     }
     if (AudioResamplerBuffer) {
@@ -179,7 +167,7 @@ int cEncodeVideo::getThreadFlags(AVCodecID ID) {
         case AV_CODEC_ID_DVVIDEO:
         case AV_CODEC_ID_MPEG2VIDEO:   Ret=FF_THREAD_SLICE;                    break;
         case AV_CODEC_ID_H264 :        Ret=FF_THREAD_FRAME|FF_THREAD_SLICE;    break;
-        default:                    Ret=FF_THREAD_FRAME;                    break;
+        default:                       Ret=FF_THREAD_FRAME;                    break;
     }
     return Ret;
 }
@@ -190,46 +178,22 @@ bool cEncodeVideo::OpenEncoder(QWidget *ParentWindow,cDiaporama *Diaporama,QStri
                     bool EncodeVideo,int VideoCodecSubId,bool VBR,sIMAGEDEF *ImageDef,int ImageWidth,int ImageHeight,int ExtendV,int InternalWidth,int InternalHeight,AVRational PixelAspectRatio,int VideoBitrate,
                     bool EncodeAudio,int AudioCodecSubId,int AudioChannels,int AudioBitrate,int AudioSampleRate,QString Language) {
 
-    sFormatDef *FormatDef   =NULL;
     this->Diaporama         =Diaporama;
     this->OutputFileName    =OutputFileName;
     this->FromSlide         =FromSlide;
     this->ToSlide           =ToSlide;
-    QString FMT             =QFileInfo(OutputFileName).suffix();
 
     //=======================================
     // Prepare container
     //=======================================
 
-    // Search FMT from FROMATDEF
-    int i=0;
-    while ((i<VFORMAT_NBR)&&(QString(FORMATDEF[i].FileExtension)!=FMT)) i++;
-
-    // if FMT not found, search it from AUDIOFORMATDEF
-    if (i>=VFORMAT_NBR) {
-        int i=0;
-        while ((i<NBR_AFORMAT)&&(QString(AUDIOFORMATDEF[i].FileExtension)!=FMT)) i++;
-        if (i>=NBR_AFORMAT) {
-            ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-OpenEncoder: Unknown format %1").arg(FMT));
-            return false;
-        } else FormatDef=&AUDIOFORMATDEF[i];
-    } else FormatDef=&FORMATDEF[i];
-
     // Alloc container
-    Container=avformat_alloc_context();
+    avformat_alloc_output_context2(&Container,NULL,NULL,OutputFileName.toUtf8().constData());
     if (!Container) {
         ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenEncoder: Unable to allocate AVFormatContext");
         return false;
     }
 
-    // Prepare container struct
-    snprintf(Container->filename,sizeof(Container->filename),"%s",OutputFileName.toUtf8().constData());
-
-    Container->oformat=av_guess_format(QString(FormatDef->ShortName).toUtf8().constData(),NULL,NULL);
-    if (!Container->oformat) {
-        ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-OpenEncoder: Unable to guess av_guess_format from container %1").arg(QString(FormatDef->ShortName)));
-        return false;
-    }
     if (Container->oformat->flags & AVFMT_NOFILE) {
         ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-OpenEncoder: Container->oformat->flags==AVFMT_NOFILE"));
         return false;
@@ -240,7 +204,6 @@ bool cEncodeVideo::OpenEncoder(QWidget *ParentWindow,cDiaporama *Diaporama,QStri
     //=======================================
 
     if (EncodeVideo) {
-
         // Video parameters
         this->VideoBitrate   =VideoBitrate;
         this->ImageDef       =ImageDef;
@@ -253,7 +216,6 @@ bool cEncodeVideo::OpenEncoder(QWidget *ParentWindow,cDiaporama *Diaporama,QStri
         // Add stream
         if (!OpenVideoStream(&VIDEOCODECDEF[VideoCodecSubId],VideoCodecSubId,VBR,VideoFrameRate,ImageWidth,ImageHeight+ExtendV,PixelAspectRatio,VideoBitrate))
             return false;
-
     } else {
         // If sound only, ensure FrameRate have a value
         VideoFrameRate.num=1;
@@ -282,7 +244,7 @@ bool cEncodeVideo::OpenEncoder(QWidget *ParentWindow,cDiaporama *Diaporama,QStri
     //********************************************
     if (!PrepareTAG(Language)) return false;
 
-    int errcode=avio_open(&Container->pb,Container->filename,AVIO_FLAG_WRITE);
+    int errcode=avio_open(&Container->pb,OutputFileName.toUtf8().constData(),AVIO_FLAG_WRITE);
     if (errcode<0) {
         ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-OpenEncoder: avio_open() failed : %1").arg(GetAvErrorMessage(errcode)));
         QString ErrorMessage=errcode==-2?QString("\n\n")+QApplication::translate("DlgRenderVideo","invalid path or invalid filename"):QString("\n\n%1").arg(GetAvErrorMessage(errcode));
@@ -297,7 +259,7 @@ bool cEncodeVideo::OpenEncoder(QWidget *ParentWindow,cDiaporama *Diaporama,QStri
 
     if (QString(Container->oformat->name)==QString("mpegts")) {
         packet_size =188;
-        mux_rate    =int(VideoStream->codec->bit_rate*1.1);
+        mux_rate    =int(VideoCodecCtx->bit_rate*1.1);
     } else if (QString(Container->oformat->name)==QString("matroska")) {
         mux_rate     =10080*1000;
         mux_preload  =AV_TIME_BASE/10;  // 100 ms preloading
@@ -338,49 +300,42 @@ bool cEncodeVideo::OpenEncoder(QWidget *ParentWindow,cDiaporama *Diaporama,QStri
 // Create a stream
 //*************************************************************************************************************************************************
 
-bool cEncodeVideo::AddStream(AVStream **Stream,AVCodec **codec,const char *CodecName,AVMediaType Type) {
-    *codec=avcodec_find_encoder_by_name(CodecName);
-    if (!(*codec)) {
+bool cEncodeVideo::AddStream(AVStream **Stream,const char *CodecName,AVMediaType Type) {
+    const AVCodec *codec=avcodec_find_encoder_by_name(CodecName);
+    AVCodecContext *codecCtx=NULL;
+    if (!(codec)) {
         ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-AddStream: Unable to find codec %1").arg(CodecName));
         return false;
     }
-    if ((*codec)->id==AV_CODEC_ID_NONE) {
+    if ((codec)->id==AV_CODEC_ID_NONE) {
         ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-AddStream: codec->id==AV_CODEC_ID_NONE"));
         return false;
     }
-
+    
     // Create stream
-    *Stream=avformat_new_stream(Container,*codec);
+    *Stream=avformat_new_stream(Container,codec);
     if (!(*Stream)) {
         ToLog(LOGMSG_CRITICAL,"EncodeVideo-AddStream: avformat_new_stream() failed");
         return false;
     }
-    (*Stream)->codec->codec_type=Type;
-    (*Stream)->codec->codec_id  =(*codec)->id;
-
+    
     // Setup encoder context for stream
-    if (avcodec_get_context_defaults3((*Stream)->codec,*codec)<0) {
-        ToLog(LOGMSG_CRITICAL,"EncodeVideo-AddStream: avcodec_get_context_defaults3() failed");
-        return false;
-    }
-
-    if (Type==AVMEDIA_TYPE_VIDEO) Container->oformat->video_codec=(*codec)->id;
-        else if (Type==AVMEDIA_TYPE_AUDIO) Container->oformat->audio_codec=(*codec)->id;
-
-    (*Stream)->codec->codec_type=Type;          // set again
-    (*Stream)->codec->codec_id  =(*codec)->id;  // set again
-
-    if ((Container->oformat->flags & AVFMT_GLOBALHEADER)
-            ||(!strcmp(Container->oformat->name,"mp4"))
-            //||(!strcmp(Container->oformat->name,"mov"))
-            ||(!strcmp(Container->oformat->name,"mpegts"))
-            ||(!strcmp(Container->oformat->name,"3gp"))
-        )
-        (*Stream)->codec->flags|=AV_CODEC_FLAG_GLOBAL_HEADER;
+    codecCtx=avcodec_alloc_context3(codec);    
+ 
+    if (Container->oformat->flags & AVFMT_GLOBALHEADER)
+        codecCtx->flags|=AV_CODEC_FLAG_GLOBAL_HEADER;
 
     int ThreadC =((getCpuCount()/*-1*/)>1)?(getCpuCount()-1):1;
-    if (ThreadC>0) (*Stream)->codec->thread_count=ThreadC;
-    (*Stream)->codec->thread_type=getThreadFlags((*codec)->id);
+    if (ThreadC>0) codecCtx->thread_count=ThreadC;
+    codecCtx->thread_type=getThreadFlags(codec->id);
+    
+    if (Type == AVMEDIA_TYPE_VIDEO) {
+        VideoCodecCtx=codecCtx;
+        VideoCodec=codec;
+    } else {
+        AudioCodecCtx=codecCtx;
+        AudioCodec=codec;
+    }
 
     return true;
 }
@@ -391,8 +346,7 @@ bool cEncodeVideo::AddStream(AVStream **Stream,AVCodec **codec,const char *Codec
 
 bool cEncodeVideo::OpenVideoStream(sVideoCodecDef *VideoCodecDef,int VideoCodecSubId,bool VBR,AVRational VideoFrameRate,
                                    int ImageWidth,int ImageHeight,AVRational PixelAspectRatio,int VideoBitrate) {
-    AVCodec *codec;
-    if (!AddStream(&VideoStream,&codec,VideoCodecDef->ShortName,AVMEDIA_TYPE_VIDEO)) return false;
+    if (!AddStream(&VideoStream,VideoCodecDef->ShortName,AVMEDIA_TYPE_VIDEO)) return false;
 
     AVDictionary *opts=NULL;
     int MinRate=-1;
@@ -401,155 +355,128 @@ bool cEncodeVideo::OpenVideoStream(sVideoCodecDef *VideoCodecDef,int VideoCodecS
     int BFrames=-1;
 
     // Setup codec parameters
-    VideoStream->codec->width               =ImageWidth;
-    VideoStream->codec->height              =ImageHeight;
-    VideoStream->codec->pix_fmt             =AV_PIX_FMT_YUV420P;
-    VideoStream->codec->time_base           =VideoFrameRate;
-    #if FFMPEGVERSIONINT>=250
-    VideoStream->time_base                  = VideoFrameRate;   //new ffmpeg 2.5.0!!!!
-    #endif
-    VideoStream->codec->sample_aspect_ratio =PixelAspectRatio;
-    VideoStream->sample_aspect_ratio        =PixelAspectRatio;
-    VideoStream->codec->gop_size            =12;
+    VideoCodecCtx->width               =ImageWidth;
+    VideoCodecCtx->height              =ImageHeight;
+    VideoCodecCtx->pix_fmt             =AV_PIX_FMT_YUV420P;
+    VideoCodecCtx->time_base           =VideoFrameRate;
+    VideoStream->time_base             =VideoFrameRate;
+    VideoCodecCtx->sample_aspect_ratio =PixelAspectRatio;
+    VideoStream->sample_aspect_ratio   =PixelAspectRatio;
+    VideoCodecCtx->gop_size            =12;
 
-    if ((codec->id!=AV_CODEC_ID_H264)||(!VBR)) {
-        VideoStream->codec->bit_rate=VideoBitrate;
-        av_dict_set(&opts,"b",QString("%1").arg(VideoBitrate).toUtf8(),0);
+    if ((VideoCodecCtx->codec_id!=AV_CODEC_ID_H264)||(!VBR)) {
+        VideoCodecCtx->bit_rate=VideoBitrate;
+        av_dict_set_int(&opts,"b",VideoBitrate,0);
     }
 
-    if (codec->id==AV_CODEC_ID_MPEG2VIDEO) {
-
+    if (VideoCodecCtx->codec_id==AV_CODEC_ID_MPEG2VIDEO) {
         BFrames=2;
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-        MinRate=VideoBitrate;
-        MaxRate=VideoBitrate;
-        BufSize=1000000;
-        VideoStream->codec->flags                |=CODEC_FLAG_CLOSED_GOP;
-        VideoStream->codec->flags2               |=CODEC_FLAG2_STRICT_GOP;
-        VideoStream->codec->scenechange_threshold =1000000000;
-        VideoStream->codec->error_concealment    |=FF_EC_DEBLOCK;
-        #endif
-
-    } else if (codec->id==AV_CODEC_ID_MJPEG) {
-
+    } else if (VideoCodecCtx->codec_id==AV_CODEC_ID_MJPEG) {
         //-qscale 2 -qmin 2 -qmax 2
-        VideoStream->codec->pix_fmt             =AV_PIX_FMT_YUVJ420P;
-        VideoStream->codec->qmin                =2;
-        VideoStream->codec->qmax                =2;
-        VideoStream->codec->bit_rate_tolerance  =int(qreal(int64_t(ImageWidth)*int64_t(ImageHeight)*int64_t(VideoFrameRate.den))/qreal(VideoFrameRate.num))*10;
-
-    } else if (codec->id==AV_CODEC_ID_VP8) {
-
+        VideoCodecCtx->pix_fmt             =AV_PIX_FMT_YUVJ420P;
+        VideoCodecCtx->qmin                =2;
+        VideoCodecCtx->qmax                =2;
+        VideoCodecCtx->bit_rate_tolerance  =int(qreal(int64_t(ImageWidth)*int64_t(ImageHeight)*int64_t(VideoFrameRate.den))/qreal(VideoFrameRate.num))*10;
+    } else if (VideoCodecCtx->codec_id==AV_CODEC_ID_VP8) {
         BFrames=3;
-        VideoStream->codec->gop_size=120;
-        VideoStream->codec->qmax    =ImageHeight<=576?63:51;                av_dict_set(&opts,"qmax",QString("%1").arg(VideoStream->codec->qmax).toUtf8(),0);
-        VideoStream->codec->qmin    =ImageHeight<=576?1:11;                 av_dict_set(&opts,"qmin",QString("%1").arg(VideoStream->codec->qmin).toUtf8(),0);
-        VideoStream->codec->mb_lmin =VideoStream->codec->qmin*FF_QP2LAMBDA;
-        av_dict_set_int(&opts, "lmin", VideoStream->codec->qmin*FF_QP2LAMBDA, 0);
-        VideoStream->codec->mb_lmax =VideoStream->codec->qmax*FF_QP2LAMBDA;
-        av_dict_set_int(&opts, "lmax", VideoStream->codec->qmax*FF_QP2LAMBDA, 0);
+        VideoCodecCtx->gop_size=120;
+        VideoCodecCtx->qmax    =ImageHeight<=576?63:51;
+        av_dict_set_int(&opts,"qmax",VideoCodecCtx->qmax,0);
+        VideoCodecCtx->qmin    =ImageHeight<=576?1:11;
+        av_dict_set_int(&opts,"qmin",VideoCodecCtx->qmin,0);
+        VideoCodecCtx->mb_lmin =VideoCodecCtx->qmin*FF_QP2LAMBDA;
+        av_dict_set_int(&opts,"mb_lmin",VideoCodecCtx->mb_lmin,0);
+        av_dict_set_int(&opts,"lmin",VideoCodecCtx->qmin,0);
+        VideoCodecCtx->mb_lmax =VideoCodecCtx->qmax*FF_QP2LAMBDA;
+        av_dict_set_int(&opts,"mb_lmax",VideoCodecCtx->mb_lmax,0);
+        av_dict_set_int(&opts,"lmax",VideoCodecCtx->qmax*FF_QP2LAMBDA,0);
 
-        if (ImageHeight<=720) av_dict_set(&opts,"profile","0",0); else av_dict_set(&opts,"profile","1",0);
-        if (ImageHeight>576)  av_dict_set(&opts,"slices","4",0);
+        if (ImageHeight<=720)
+            av_dict_set_int(&opts,"profile",0,0);
+        else
+            av_dict_set_int(&opts,"profile",1,0);
+        if (ImageHeight>576) av_dict_set_int(&opts,"slices",4,0);
 
-        av_dict_set(&opts,"lag-in-frames","16",0);
+        av_dict_set_int(&opts,"lag-in-frames",16,0);
         av_dict_set(&opts,"deadline","good",0);
-        if (VideoStream->codec->thread_count>0) av_dict_set(&opts,"cpu-used",QString("%1").arg(VideoStream->codec->thread_count).toUtf8(),0);
+        if (VideoCodecCtx->thread_count>0) av_dict_set_int(&opts,"cpu-used",VideoCodecCtx->thread_count,0);
 
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            MinRate=VideoBitrate;
-            MaxRate=VideoBitrate;
-            BufSize=VideoBitrate;
-        #endif
-
-    } else if (codec->id==AV_CODEC_ID_H264) {
-
-        VideoStream->codec->qmin    =0;             av_dict_set(&opts,"qmin",QString("%1").arg(VideoStream->codec->qmin).toUtf8(),0);
-        VideoStream->codec->qmax    =69;            av_dict_set(&opts,"qmax",QString("%1").arg(VideoStream->codec->qmax).toUtf8(),0);
-        if (VideoStream->codec->thread_count>0)     av_dict_set(&opts,"threads",QString("%1").arg(VideoStream->codec->thread_count).toUtf8(),0);
+    } else if (VideoCodecCtx->codec_id==AV_CODEC_ID_H264) {
+        if (VideoCodecCtx->thread_count>0) av_dict_set_int(&opts,"threads",VideoCodecCtx->thread_count,0);
 
         switch (VideoCodecSubId) {
             case VCODEC_H264HQ:     // High Quality H.264 AVC/MPEG-4 AVC
             case VCODEC_H264PQ:     // Phone Quality H.264 AVC/MPEG-4 AVC
-                av_dict_set(&opts,"refs","3",0);
+                av_dict_set_int(&opts,"refs",3,0);
                 if (VBR) {
                     MinRate=int(double(VideoBitrate)*VBRMINCOEF);
                     MaxRate=int(double(VideoBitrate)*VBRMAXCOEF);
                     BufSize=int(double(VideoBitrate)*4);
-                } else {
-                    MinRate=int(double(VideoBitrate)*0.9);
-                    MaxRate=int(double(VideoBitrate)*1.1);
-                    BufSize=int(double(VideoBitrate)*2);
                 }
-                //                                                           High Quality   Phone Quality
-                av_dict_set(&opts,"preset",  (VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Preset_HQ :Diaporama->ApplicationConfig->Preset_PQ).toLocal8Bit(),0);
-                av_dict_set(&opts,"vprofile",(VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Profile_HQ:Diaporama->ApplicationConfig->Profile_PQ).toLocal8Bit(),0);  // 2 versions to support differents libav/ffmpeg
-                av_dict_set(&opts,"profile", (VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Profile_HQ:Diaporama->ApplicationConfig->Profile_PQ).toLocal8Bit(),0);
-                av_dict_set(&opts,"tune",    (VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Tune_HQ   :Diaporama->ApplicationConfig->Tune_PQ).toLocal8Bit(),0);
+                av_dict_set(&opts,"preset",(VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Preset_HQ:Diaporama->ApplicationConfig->Preset_PQ).toLocal8Bit(),0);
+                av_dict_set(&opts,"profile",(VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Profile_HQ:Diaporama->ApplicationConfig->Profile_PQ).toLocal8Bit(),0);
+                av_dict_set(&opts,"tune",(VideoCodecSubId==VCODEC_H264HQ?Diaporama->ApplicationConfig->Tune_HQ:Diaporama->ApplicationConfig->Tune_PQ).toLocal8Bit(),0);
                 break;
 
             case VCODEC_X264LL: // x264 lossless
                 av_dict_set(&opts,"preset","veryfast",0);
-                av_dict_set(&opts,"refs","3",0);
-                av_dict_set(&opts,"qp",  "0",0);
+                av_dict_set_int(&opts,"refs",3,0);
+                av_dict_set_int(&opts,"qp",0,0);
                 break;
         }
 
     }
 
-    VideoStream->codec->keyint_min=1;
-    av_dict_set(&opts,"g",QString("%1").arg(VideoStream->codec->gop_size).toUtf8(),0);
-    av_dict_set(&opts,"keyint_min",QString("%1").arg(VideoStream->codec->keyint_min).toUtf8(),0);
+    VideoCodecCtx->keyint_min=1;
+    av_dict_set_int(&opts,"g",VideoCodecCtx->gop_size,0);
+    av_dict_set_int(&opts,"keyint_min",1,0);
 
     if (MinRate!=-1) {
-        av_dict_set(&opts,"minrate",QString("%1").arg(MinRate).toUtf8(),0);
-        av_dict_set(&opts,"maxrate",QString("%1").arg(MaxRate).toUtf8(),0);
-        av_dict_set(&opts,"bufsize",QString("%1").arg(BufSize).toUtf8(),0);
+        av_dict_set_int(&opts,"minrate",MinRate,0);
+        av_dict_set_int(&opts,"maxrate",MaxRate,0);
+        av_dict_set_int(&opts,"bufsize",BufSize,0);
     }
 
     if (BFrames!=-1) {
-        VideoStream->codec->max_b_frames=BFrames;
-        av_dict_set(&opts,"bf",QString("%1").arg(BFrames).toUtf8(),0);
+        VideoCodecCtx->max_b_frames=BFrames;
+        av_dict_set_int(&opts,"bf",BFrames,0);
     }
-    VideoStream->codec->has_b_frames=(VideoStream->codec->max_b_frames>0)?1:0;
+    VideoCodecCtx->has_b_frames=(VideoCodecCtx->max_b_frames>0)?1:0;
 
     // Open encoder
-    int errcode=avcodec_open2(VideoStream->codec,codec,&opts);
+    int errcode=avcodec_open2(VideoCodecCtx,VideoCodec,&opts);
     if (errcode<0) {
         char Buf[2048];
         av_strerror(errcode,Buf,2048);
         ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenVideoStream: avcodec_open2() failed: "+QString(Buf));
         return false;
     }
+    
+    errcode = avcodec_parameters_from_context(VideoStream->codecpar, VideoCodecCtx);
+    if (errcode < 0) {
+        ToLog(LOGMSG_CRITICAL, "Failed to copy video encoder parameters to output stream\n");
+        return false;
+    }
 
     // Create VideoFrameConverter
     VideoFrameConverter=sws_getContext(
-        InternalWidth,VideoStream->codec->height,PIXFMT,                                    // Src Widht,Height,Format
-        VideoStream->codec->width,VideoStream->codec->height,VideoStream->codec->pix_fmt,   // Destination Width,Height,Format
-        SWS_BICUBIC,                                                                        // flags
-        NULL,NULL,NULL);                                                                    // src Filter,dst Filter,param
+        InternalWidth,VideoCodecCtx->height,PIXFMT,                          // Src Widht,Height,Format
+        VideoCodecCtx->width,VideoCodecCtx->height,VideoCodecCtx->pix_fmt,   // Destination Width,Height,Format
+        SWS_BICUBIC,                                                         // flags
+        NULL,NULL,NULL);                                                     // src Filter,dst Filter,param
     if (!VideoFrameConverter) {
         ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenVideoStream: sws_getContext() failed");
         return false;
     }
 
-    #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-    // Create VideoEncodeBuffer
-    VideoEncodeBuffer=(u_int8_t *)av_malloc(VideoEncodeBufferSize);
-    if (!VideoEncodeBuffer) {
-        ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenVideoStream: av_malloc() failed for VideoEncodeBuffer");
-        return false;
-    }
-    #endif
-
     // Create and prepare VideoFrame and VideoFrameBuf
-    VideoFrame=ALLOCFRAME();  // Allocate structure for RGB image
+    VideoFrame=av_frame_alloc();  // Allocate structure for RGB image
     if (!VideoFrame) {
         ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenVideoStream: avcodec_alloc_frame() failed");
         return false;
     } else {
-        VideoFrameBufSize=avpicture_get_size(VideoStream->codec->pix_fmt,VideoStream->codec->width,VideoStream->codec->height);
-        VideoFrameBuf   =(u_int8_t *)av_malloc(VideoFrameBufSize);
+        VideoFrameBufSize=av_image_get_buffer_size(VideoCodecCtx->pix_fmt,VideoCodecCtx->width,VideoCodecCtx->height,1);
+        VideoFrameBuf    =(uint8_t *)av_malloc(VideoFrameBufSize);
         if ((!VideoFrameBufSize)||(!VideoFrameBuf)) {
             ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenVideoStream: av_malloc() failed for VideoFrameBuf");
             return false;
@@ -564,76 +491,67 @@ bool cEncodeVideo::OpenVideoStream(sVideoCodecDef *VideoCodecDef,int VideoCodecS
 //*************************************************************************************************************************************************
 
 bool cEncodeVideo::OpenAudioStream(sAudioCodecDef *AudioCodecDef,int &AudioChannels,int &AudioBitrate,int &AudioSampleRate,QString Language) {
-    AVCodec *codec;
-    if (!AddStream(&AudioStream,&codec,AudioCodecDef->ShortName,AVMEDIA_TYPE_AUDIO)) return false;
+    if (!AddStream(&AudioStream,AudioCodecDef->ShortName,AVMEDIA_TYPE_AUDIO)) return false;
 
     AVDictionary    *opts   =NULL;
 
     // Setup codec parameters
-    AudioStream->codec->sample_fmt  =AV_SAMPLE_FMT_S16;
-    AudioStream->codec->channels    =AudioChannels;
-    AudioStream->codec->sample_rate =AudioSampleRate;
+    AudioCodecCtx->sample_fmt  =AV_SAMPLE_FMT_S16;
+    AudioCodecCtx->channels    =AudioChannels;
+    AudioCodecCtx->sample_rate =AudioSampleRate;
 
     av_dict_set(&AudioStream->metadata,"language",Language.toUtf8().constData(),0);
 
-    if (codec->id==AV_CODEC_ID_PCM_S16LE) {
+    if (AudioCodecCtx->codec_id==AV_CODEC_ID_PCM_S16LE) {
         AudioBitrate=AudioSampleRate*16*AudioChannels;
-    } else if (codec->id==AV_CODEC_ID_FLAC) {
-        av_dict_set(&opts,"lpc_coeff_precision","15",0);
-        av_dict_set(&opts,"lpc_type","2",0);
-        av_dict_set(&opts,"lpc_passes","1",0);
-        av_dict_set(&opts,"min_partition_order","0",0);
-        av_dict_set(&opts,"max_partition_order","8",0);
-        av_dict_set(&opts,"prediction_order_method","0",0);
-        av_dict_set(&opts,"ch_mode","-1",0);
-    } else if (codec->id==AV_CODEC_ID_AAC) {
-        //VideoStream->codec->profile=FF_PROFILE_AAC_MAIN;
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_FLAC) {
+        av_dict_set_int(&opts,"lpc_coeff_precision",15,0);
+        av_dict_set_int(&opts,"lpc_type",2,0);
+        av_dict_set_int(&opts,"lpc_passes",1,0);
+        av_dict_set_int(&opts,"min_partition_order",0,0);
+        av_dict_set_int(&opts,"max_partition_order",8,0);
+        av_dict_set_int(&opts,"prediction_order_method",0,0);
+        av_dict_set_int(&opts,"ch_mode",-1,0);
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AAC) {
         if (QString(AUDIOCODECDEF[2].ShortName)=="aac") {
-            AudioStream->codec->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
-            #if defined(FFMPEG)
-            AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_FLTP;
-            #endif
+            AudioCodecCtx->strict_std_compliance = FF_COMPLIANCE_EXPERIMENTAL;
+            AudioCodecCtx->sample_fmt =AV_SAMPLE_FMT_FLTP;
         }
-    } else if (codec->id==AV_CODEC_ID_MP2) {
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_MP2) {
 
-    } else if (codec->id==AV_CODEC_ID_MP3) {
-        #if (defined(LIBAV)&&(LIBAVVERSIONINT>=9))||defined(FFMPEG)
-        AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_S16P;
-        #endif
-        av_dict_set(&opts,"reservoir","1",0);
-    } else if (codec->id==AV_CODEC_ID_VORBIS) {
-        #if (defined(LIBAV)&&(LIBAVVERSIONINT>=9))||defined(FFMPEG)
-        AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_FLTP;
-        #else
-        //AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_FLT;
-        AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_S16;
-        #endif
-    } else if (codec->id==AV_CODEC_ID_AC3) {
-        #if (defined(LIBAV)&&(LIBAVVERSIONINT>=9))||defined(FFMPEG)
-        AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_FLTP;
-        #else
-        AudioStream->codec->sample_fmt =AV_SAMPLE_FMT_FLT;
-        #endif
-    } else if (codec->id==AV_CODEC_ID_AMR_NB) {
-        AudioStream->codec->channels=1;
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_MP3) {
+        AudioCodecCtx->sample_fmt =AV_SAMPLE_FMT_S16P;
+        av_dict_set_int(&opts,"reservoir",1,0);
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_VORBIS) {
+        AudioCodecCtx->sample_fmt =AV_SAMPLE_FMT_FLTP;
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AC3) {
+        AudioCodecCtx->sample_fmt =AV_SAMPLE_FMT_FLTP;
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AMR_NB) {
+        AudioCodecCtx->channels=1;
         AudioChannels=1;
-    } else if (codec->id==AV_CODEC_ID_AMR_WB) {
-        AudioStream->codec->channels=1;
+    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AMR_WB) {
+        AudioCodecCtx->channels=1;
         AudioChannels=1;
     }
-    AudioStream->codec->bit_rate    =AudioBitrate;
-    av_dict_set(&opts,"ab",QString("%1").arg(AudioBitrate).toUtf8(),0);
-    AudioStream->codec->channel_layout=(AudioStream->codec->channels==2?AV_CH_LAYOUT_STEREO:AV_CH_LAYOUT_MONO);
+    AudioCodecCtx->bit_rate    =AudioBitrate;
+    av_dict_set_int(&opts,"ab",AudioBitrate,0);
+    AudioCodecCtx->channel_layout=(AudioCodecCtx->channels==2?AV_CH_LAYOUT_STEREO:AV_CH_LAYOUT_MONO);
 
-    int errcode=avcodec_open2(AudioStream->codec,codec,&opts);
+    int errcode=avcodec_open2(AudioCodecCtx,AudioCodec,&opts);
     if (errcode<0) {
         char Buf[2048];
         av_strerror(errcode,Buf,2048);
         ToLog(LOGMSG_CRITICAL,"EncodeVideo-OpenAudioStream: avcodec_open2() failed: "+QString(Buf));
         return false;
     }
+    
+    errcode = avcodec_parameters_from_context(AudioStream->codecpar, AudioCodecCtx);
+    if (errcode < 0) {
+        ToLog(LOGMSG_CRITICAL, "Failed to copy audio encoder parameters to output stream\n");
+        return false;
+    }
 
-    AudioFrame=ALLOCFRAME();  // Allocate structure for RGB image
+    AudioFrame=av_frame_alloc();  // Allocate structure for RGB image
     if (AudioFrame==NULL) {
         ToLog(LOGMSG_CRITICAL,QString("EncodeVideo-OpenAudioStream:: avcodec_alloc_frame failed"));
         return false;
@@ -693,11 +611,7 @@ QString cEncodeVideo::AdjustMETA(QString Text) {
     Text.replace("#","\\#");
     //Text.replace("\\","\\\\");
     Text.replace("\n","\\\n");
-    #ifdef Q_OS_WIN
-        return Text.toUtf8();
-    #else
-        return Text;
-    #endif
+    return Text;
 }
 
 //*************************************************************************************************************************************************
@@ -715,27 +629,19 @@ bool cEncodeVideo::DoEncode() {
     // Init RenderMusic and ToEncodeMusic
     if (AudioStream) {
         RenderMusic.SetFPS(IncreasingVideoPts,AudioChannels,AudioSampleRate,AV_SAMPLE_FMT_S16);
-        FrameSize=AudioStream->codec->frame_size;
-        if ((!FrameSize)&&(AudioStream->codec->codec_id==AV_CODEC_ID_PCM_S16LE)) FrameSize=1024;
-        if ((FrameSize==0)&&(VideoStream)) FrameSize=(AudioStream->codec->sample_rate*AudioStream->time_base.num)/AudioStream->time_base.den;
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            // LIBAV 0.8 => ToEncodeMusic use AudioStream->codec->sample_fmt format
-            int ComputedFrameSize=AudioStream->codec->channels*av_get_bytes_per_sample(AudioStream->codec->sample_fmt)*FrameSize;
-            if (ComputedFrameSize==0) ComputedFrameSize=RenderMusic.SoundPacketSize;
-            ToEncodeMusic.SetFrameSize(ComputedFrameSize,AudioStream->codec->channels,AudioSampleRate,AudioStream->codec->sample_fmt);
-        #else
-            // LIBAV 9 AND FFMPEG => ToEncodeMusic use AV_SAMPLE_FMT_S16 format
-            int ComputedFrameSize=AudioChannels*av_get_bytes_per_sample(AV_SAMPLE_FMT_S16)*FrameSize;
-            if (ComputedFrameSize==0) ComputedFrameSize=RenderMusic.SoundPacketSize;
-            ToEncodeMusic.SetFrameSize(ComputedFrameSize,RenderMusic.Channels,AudioSampleRate,AV_SAMPLE_FMT_S16);
-        #endif
+        FrameSize=AudioCodecCtx->frame_size;
+        if ((!FrameSize)&&(AudioCodecCtx->codec_id==AV_CODEC_ID_PCM_S16LE)) FrameSize=1024;
+        if ((FrameSize==0)&&(VideoStream)) FrameSize=(AudioCodecCtx->sample_rate*AudioStream->time_base.num)/AudioStream->time_base.den;
+        int ComputedFrameSize=AudioChannels*av_get_bytes_per_sample(AV_SAMPLE_FMT_S16)*FrameSize;
+        if (ComputedFrameSize==0) ComputedFrameSize=RenderMusic.SoundPacketSize;
+        ToEncodeMusic.SetFrameSize(ComputedFrameSize,RenderMusic.Channels,AudioSampleRate,AV_SAMPLE_FMT_S16);
     }
 
     AudioFrameNbr       =0;
     VideoFrameNbr       =0;
     LastAudioPts        =0;
     LastVideoPts        =0;
-    IncreasingAudioPts  =AudioStream?FrameSize*1000*AudioStream->codec->time_base.num/AudioStream->codec->time_base.den:0;
+    IncreasingAudioPts  =AudioStream?FrameSize*1000*AudioCodecCtx->time_base.num/AudioCodecCtx->time_base.den:0;
     StartTime           =QTime::currentTime();
     LastCheckTime       =StartTime;                                     // Display control : last time the loop start
     Position            =Diaporama->GetObjectStartPosition(FromSlide);  // Render current position
@@ -745,78 +651,23 @@ bool cEncodeVideo::DoEncode() {
 
     // Init Resampler (if needed)
     if (AudioStream) {
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            if ((AudioStream->codec->sample_fmt!=RenderMusic.SampleFormat)||(AudioStream->codec->channels!=RenderMusic.Channels)||(AudioSampleRate!=RenderMusic.SamplingRate)) {
-                if (!AudioResamplerBuffer) {
-                    AudioResamplerBufferSize=AVCODEC_MAX_AUDIO_FRAME_SIZE*ToEncodeMusic.Channels;
-                    AudioResamplerBuffer=(u_int8_t *)av_malloc(AudioResamplerBufferSize);
-                    if (!AudioResamplerBuffer) {
-                        ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: AudioResamplerBuffer allocation failed"));
-                        Continue=false;
-                    }
-                }
-                if (!AudioResampler) AudioResampler=av_audio_resample_init(         // Context for resampling audio data
-                    AudioStream->codec->channels,RenderMusic.Channels,              // output_channels, input_channels
-                    AudioSampleRate,RenderMusic.SamplingRate,                       // output_rate, input_rate
-                    AudioStream->codec->sample_fmt,RenderMusic.SampleFormat,        // sample_fmt_out, sample_fmt_in
-                    0,                                                              // filter_length
-                    0,                                                              // log2_phase_count
-                    1,                                                              // linear
-                    0);                                                             // cutoff
-                if (!AudioResampler) {
-                    ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: av_audio_resample_init failed"));
+        if ((AudioCodecCtx->sample_fmt!=RenderMusic.SampleFormat)||(AudioCodecCtx->channels!=RenderMusic.Channels)||(AudioSampleRate!=RenderMusic.SamplingRate)) {
+            if (!AudioResampler) {
+                AudioResampler=swr_alloc();
+                av_opt_set_int(AudioResampler,"in_channel_layout",     av_get_default_channel_layout(ToEncodeMusic.Channels),0);
+                av_opt_set_int(AudioResampler,"in_sample_rate",        ToEncodeMusic.SamplingRate,0);
+                av_opt_set_int(AudioResampler,"out_channel_layout",    AudioCodecCtx->channel_layout,0);
+                av_opt_set_int(AudioResampler,"out_sample_rate",       AudioCodecCtx->sample_rate,0);
+                av_opt_set_int(AudioResampler,"in_channel_count",      ToEncodeMusic.Channels,0);
+                av_opt_set_int(AudioResampler,"out_channel_count",     AudioCodecCtx->channels,0);
+                av_opt_set_sample_fmt(AudioResampler,"out_sample_fmt", AudioCodecCtx->sample_fmt,0);
+                av_opt_set_sample_fmt(AudioResampler,"in_sample_fmt",  ToEncodeMusic.SampleFormat,0);
+                if (swr_init(AudioResampler)<0) {
+                    ToLog(LOGMSG_CRITICAL,QString("DoEncode: swr_alloc_set_opts failed"));
                     Continue=false;
                 }
             }
-        #elif defined(LIBAV)
-            if ((AudioStream->codec->sample_fmt!=ToEncodeMusic.SampleFormat)||(AudioStream->codec->channels!=ToEncodeMusic.Channels)||(AudioSampleRate!=ToEncodeMusic.SamplingRate)) {
-                if (!AudioResamplerBuffer) {
-                    int out_linesize=0;
-                    if (av_samples_alloc(&AudioResamplerBuffer,&out_linesize,ToEncodeMusic.Channels,AVCODEC_MAX_AUDIO_FRAME_SIZE,ToEncodeMusic.SampleFormat,1)<0) {
-                        ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: AudioResamplerBuffer allocation failed"));
-                        Continue=false;
-                    } else {
-                        AudioResamplerBufferSize=out_linesize*ToEncodeMusic.Channels;
-                    }
-                }
-                if (!AudioResampler) {
-                    AudioResampler=avresample_alloc_context();
-                    if (AudioResampler) {
-                        av_opt_set_int(AudioResampler,"in_channel_layout", av_get_default_channel_layout(ToEncodeMusic.Channels),0);
-                        av_opt_set_int(AudioResampler,"in_sample_rate",    ToEncodeMusic.SamplingRate,0);
-                        av_opt_set_int(AudioResampler,"out_channel_layout",AudioStream->codec->channel_layout,0);
-                        av_opt_set_int(AudioResampler,"out_sample_rate",   AudioSampleRate,0);
-                        av_opt_set_int(AudioResampler,"in_sample_fmt",     ToEncodeMusic.SampleFormat,0);
-                        av_opt_set_int(AudioResampler,"out_sample_fmt",    AudioStream->codec->sample_fmt,0);
-                            if (avresample_open(AudioResampler)<0) {
-                                ToLog(LOGMSG_CRITICAL,QString("DoEncode: avresample_open failed"));
-                                Continue=false;
-                            }
-                    } else {
-                        ToLog(LOGMSG_CRITICAL,QString("Error allocating AVAudioResampleContext"));
-                        Continue=false;
-                    }
-                }
-            }
-        #elif defined(FFMPEG)
-            if ((AudioStream->codec->sample_fmt!=RenderMusic.SampleFormat)||(AudioStream->codec->channels!=RenderMusic.Channels)||(AudioSampleRate!=RenderMusic.SamplingRate)) {
-                if (!AudioResampler) {
-                    AudioResampler=swr_alloc();
-                    av_opt_set_int(AudioResampler,"in_channel_layout",     av_get_default_channel_layout(ToEncodeMusic.Channels),0);
-                    av_opt_set_int(AudioResampler,"in_sample_rate",        ToEncodeMusic.SamplingRate,0);
-                    av_opt_set_int(AudioResampler,"out_channel_layout",    AudioStream->codec->channel_layout,0);
-                    av_opt_set_int(AudioResampler,"out_sample_rate",       AudioStream->codec->sample_rate,0);
-                    av_opt_set_int(AudioResampler,"in_channel_count",      ToEncodeMusic.Channels,0);
-                    av_opt_set_int(AudioResampler,"out_channel_count",     AudioStream->codec->channels,0);
-                    av_opt_set_sample_fmt(AudioResampler,"out_sample_fmt", AudioStream->codec->sample_fmt,0);
-                    av_opt_set_sample_fmt(AudioResampler,"in_sample_fmt",  ToEncodeMusic.SampleFormat,0);
-                    if (swr_init(AudioResampler)<0) {
-                        ToLog(LOGMSG_CRITICAL,QString("DoEncode: swr_alloc_set_opts failed"));
-                        Continue=false;
-                    }
-                }
-            }
-        #endif
+        }
     }
 
     // Prepare a DefaultSourceImage to not create it for each frame
@@ -836,16 +687,8 @@ bool cEncodeVideo::DoEncode() {
     }
 
     // Define InterleaveFrame to not compute it for each frame
-    #if (defined(FFMPEG)&&(FFMPEGVERSIONINT>=201) || (LIBAVVERSIONINT >=10))
     InterleaveFrame=(strcmp(Container->oformat->name,"avi")!=0);
-    #else
-    InterleaveFrame=true;
-    #endif
-
-    #ifdef Q_OS_WIN
-    QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
-    #endif
-
+    
     for (RenderedFrame=0;Continue && (RenderedFrame<NbrFrame);RenderedFrame++) {
         // Calculate position & column
         AdjustedDuration=((Column>=0)&&(Column<Diaporama->List.count()))?Diaporama->List[Column]->GetDuration()-Diaporama->GetTransitionDuration(Column+1):0;
@@ -856,7 +699,7 @@ bool cEncodeVideo::DoEncode() {
             AdjustedDuration=((Column>=0)&&(Column<Diaporama->List.count()))?Diaporama->List[Column]->GetDuration()-Diaporama->GetTransitionDuration(Column+1):0;
             if (AdjustedDuration<33) AdjustedDuration=33; // Not less than 1/30 sec
             ColumnStart=Diaporama->GetObjectStartPosition(Column);
-            Diaporama->CloseUnusedLibAv(Column);
+            Diaporama->CloseUnusedFFMPEG(Column);
             if (LastCheckTime.msecsTo(QTime::currentTime())>=1000) {
                 LastCheckTime=QTime::currentTime();
             }
@@ -914,8 +757,8 @@ bool cEncodeVideo::DoEncode() {
         // If not static image then compute using threaded function
         if ((!PreviousFrame)||(PreviousFrame->RenderedImage.isNull()))
             ThreadAssembly.setFuture(QtConcurrent::run(this,&cEncodeVideo::Assembly,Frame,PreviousFrame,&RenderMusic,&ToEncodeMusic,Continue));
-            else Assembly(Frame,PreviousFrame,&RenderMusic,&ToEncodeMusic,Continue);
-        //Assembly+=Time.elapsed(); Time.restart();
+        else
+            Assembly(Frame,PreviousFrame,&RenderMusic,&ToEncodeMusic,Continue);
 
         // Calculate next position
         if (Continue) {
@@ -931,10 +774,6 @@ bool cEncodeVideo::DoEncode() {
     if (ThreadAssembly.isRunning())    ThreadAssembly.waitForFinished();
     if (ThreadEncodeAudio.isRunning()) ThreadEncodeAudio.waitForFinished();
     if (ThreadEncodeVideo.isRunning()) ThreadEncodeVideo.waitForFinished();
-
-    #ifdef Q_OS_WIN
-    QThread::currentThread()->setPriority(QThread::HighestPriority);
-    #endif
 
     Position=-1;
     ColumnStart=0;
@@ -974,36 +813,22 @@ void cEncodeVideo::Assembly(cDiaporamaObjectInfo *Frame,cDiaporamaObjectInfo *Pr
 
 void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *RenderMusic,cSoundBlockList *ToEncodeMusic,bool &Continue) {
     // Transfert RenderMusic data to EncodeMusic data
-    //while ((Continue)&&(RenderMusic->List.count()>0)) {
     int MaxPQ=RenderMusic->NbrPacketForFPS;
     if (MaxPQ>RenderMusic->ListCount()) MaxPQ=RenderMusic->ListCount();
     for (int PQ=0;(Continue)&&(PQ<MaxPQ);PQ++) {
-        u_int8_t *PacketSound=(u_int8_t *)RenderMusic->DetachFirstPacket();
+        uint8_t *PacketSound=(uint8_t *)RenderMusic->DetachFirstPacket();
         if (PacketSound==NULL) {
-            PacketSound=(u_int8_t *)av_malloc(RenderMusic->SoundPacketSize+8);
+            PacketSound=(uint8_t *)av_malloc(RenderMusic->SoundPacketSize+8);
             memset(PacketSound,0,RenderMusic->SoundPacketSize);
         }
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            // LIBAV 0.8 => ToEncodeMusic must have exactly AudioStream->codec->frame_size data
-            if ((AudioResampler!=NULL)&&(AudioResamplerBuffer!=NULL)) {
-                int64_t DestNbrSamples=RenderMusic->SoundPacketSize/(RenderMusic->Channels*av_get_bytes_per_sample(RenderMusic->SampleFormat));
-                int64_t DestPacketSize=audio_resample(AudioResampler,(short int*)AudioResamplerBuffer,(short int*)PacketSound,DestNbrSamples)*AudioStream->codec->channels*av_get_bytes_per_sample(AudioStream->codec->sample_fmt);
-                if (DestPacketSize<=0) {
-                    ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: audio_resample failed"));
-                    Continue=false;
-                } else ToEncodeMusic->AppendData(Frame->CurrentObject_StartTime+Frame->CurrentObject_InObjectTime,(int16_t *)AudioResamplerBuffer,DestPacketSize);
-            } else ToEncodeMusic->AppendData(Frame->CurrentObject_StartTime+Frame->CurrentObject_InObjectTime,(int16_t *)PacketSound,RenderMusic->SoundPacketSize);
-        #else
-            // LIBAV 9 AND FFMPEG => ToEncodeMusic is converted during encoding process
-            ToEncodeMusic->AppendData(Frame->CurrentObject_StartTime+Frame->CurrentObject_InObjectTime,(int16_t *)PacketSound,RenderMusic->SoundPacketSize);
-        #endif
+        ToEncodeMusic->AppendData(Frame->CurrentObject_StartTime+Frame->CurrentObject_InObjectTime,(int16_t *)PacketSound,RenderMusic->SoundPacketSize);
         av_free(PacketSound);
     }
 
     int         errcode;
     int64_t     DestNbrSamples=ToEncodeMusic->SoundPacketSize/(ToEncodeMusic->Channels*av_get_bytes_per_sample(ToEncodeMusic->SampleFormat));
-    int         DestSampleSize=AudioStream->codec->channels*av_get_bytes_per_sample(AudioStream->codec->sample_fmt);
-    u_int8_t    *DestPacket   =NULL;
+    int         DestSampleSize=AudioCodecCtx->channels*av_get_bytes_per_sample(AudioCodecCtx->sample_fmt);
+    uint8_t    *DestPacket   =NULL;
     int16_t     *PacketSound  =NULL;
     int64_t     DestPacketSize=DestNbrSamples*DestSampleSize;
 
@@ -1014,128 +839,89 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
             ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: PacketSound==NULL"));
             Continue=false;
         } else {
-            #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-                DestPacket=(u_int8_t *)PacketSound;
-            #elif defined(LIBAV)
-                // LIBAV 9 => Convert sample format (is needed)
-                if ((AudioResampler!=NULL)&&(AudioResamplerBuffer!=NULL)) {
-                    DestPacket=AudioResamplerBuffer;
-                    u_int8_t *in_data[RESAMPLE_MAX_CHANNELS]={0},*out_data[RESAMPLE_MAX_CHANNELS]={0};
-                    int      in_linesize=0,out_linesize=0;
-                    int      out_samples=avresample_available(AudioResampler)+av_rescale_rnd(avresample_get_delay(AudioResampler)+DestNbrSamples,AudioStream->codec->sample_rate,ToEncodeMusic->SamplingRate,AV_ROUND_UP);
-                    if (av_samples_fill_arrays(in_data,&in_linesize,(u_int8_t *)PacketSound,ToEncodeMusic->Channels,DestNbrSamples,ToEncodeMusic->SampleFormat,1)<0) {
-                        ToLog(LOGMSG_CRITICAL,QString("failed in_data fill arrays"));
+            if (AudioResampler!=NULL) {
+                int out_samples=av_rescale_rnd(swr_get_delay(AudioResampler,ToEncodeMusic->SamplingRate)+DestNbrSamples,AudioCodecCtx->sample_rate,ToEncodeMusic->SamplingRate,AV_ROUND_UP);
+                av_samples_alloc(&AudioResamplerBuffer,NULL,AudioCodecCtx->channels,out_samples,AudioCodecCtx->sample_fmt,0);
+                if (!AudioResamplerBuffer) {
+                    ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: AudioResamplerBuffer allocation failed"));
+                    Continue=false;
+                }
+                uint8_t *in_data[AVRESAMPLE_MAX_CHANNELS]={0},*out_data[AVRESAMPLE_MAX_CHANNELS]={0};
+                int     in_linesize=0,out_linesize=0;
+                if (av_samples_fill_arrays(in_data,&in_linesize,(uint8_t *)PacketSound,ToEncodeMusic->Channels,DestNbrSamples,ToEncodeMusic->SampleFormat,0)<0) {
+                    ToLog(LOGMSG_CRITICAL,QString("failed in_data fill arrays"));
+                    Continue=false;
+                } else {
+                    if (av_samples_fill_arrays(out_data,&out_linesize,AudioResamplerBuffer,AudioCodecCtx->channels,out_samples,AudioCodecCtx->sample_fmt,0)<0) {
+                        ToLog(LOGMSG_CRITICAL,QString("failed out_data fill arrays"));
                         Continue=false;
                     } else {
-                        if (av_samples_fill_arrays(out_data,&out_linesize,AudioResamplerBuffer,AudioStream->codec->channels,out_samples,AudioStream->codec->sample_fmt,1)<0) {
-                            ToLog(LOGMSG_CRITICAL,QString("failed out_data fill arrays"));
+                        DestPacketSize=swr_convert(AudioResampler,out_data,out_samples,(const uint8_t **)in_data,DestNbrSamples)*DestSampleSize;
+                        if (DestPacketSize<=0) {
+                            ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: swr_convert failed"));
                             Continue=false;
-                        } else {
-                            DestPacketSize=avresample_convert(AudioResampler,out_data,out_linesize,out_samples,in_data,in_linesize,DestNbrSamples)*DestSampleSize;
-                            if (DestPacketSize<=0) {
-                                ToLog(LOGMSG_CRITICAL,QString("Error in avresample_convert"));
-                                Continue=false;
-                            }
                         }
+                        DestPacket=(uint8_t *)out_data[0];
                     }
-                    DestPacket=out_data[0];
-                } else DestPacket=(u_int8_t *)PacketSound;
-            #elif defined(FFMPEG)
-                if (AudioResampler!=NULL) {
-                    int out_samples=av_rescale_rnd(swr_get_delay(AudioResampler,ToEncodeMusic->SamplingRate)+DestNbrSamples,AudioStream->codec->sample_rate,ToEncodeMusic->SamplingRate,AV_ROUND_UP);
-                    av_samples_alloc(&AudioResamplerBuffer,NULL,AudioStream->codec->channels,out_samples,AudioStream->codec->sample_fmt,0);
-                    if (!AudioResamplerBuffer) {
-                        ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: AudioResamplerBuffer allocation failed"));
-                        Continue=false;
-                    }
-                    u_int8_t *in_data[RESAMPLE_MAX_CHANNELS]={0},*out_data[RESAMPLE_MAX_CHANNELS]={0};
-                    int     in_linesize=0,out_linesize=0;
-                    if (av_samples_fill_arrays(in_data,&in_linesize,(u_int8_t *)PacketSound,ToEncodeMusic->Channels,DestNbrSamples,ToEncodeMusic->SampleFormat,0)<0) {
-                        ToLog(LOGMSG_CRITICAL,QString("failed in_data fill arrays"));
-                        Continue=false;
-                    } else {
-                        if (av_samples_fill_arrays(out_data,&out_linesize,AudioResamplerBuffer,AudioStream->codec->channels,out_samples,AudioStream->codec->sample_fmt,0)<0) {
-                            ToLog(LOGMSG_CRITICAL,QString("failed out_data fill arrays"));
-                            Continue=false;
-                        } else {
-                            //DestPacketSize=swr_convert(AudioResampler,out_data,out_samples,(const u_int8_t **)&in_data,DestNbrSamples)*DestSampleSize;
-                            DestPacketSize=swr_convert(AudioResampler,out_data,out_samples,(const u_int8_t **)in_data,DestNbrSamples)*DestSampleSize;
-                            if (DestPacketSize<=0) {
-                                ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: swr_convert failed"));
-                                Continue=false;
-                            }
-                            DestPacket=(u_int8_t *)out_data[0];
-                        }
-                    }
-                } else DestPacket=(u_int8_t *)PacketSound;
-            #endif
+                }
+            } else DestPacket=(uint8_t *)PacketSound;
 
             if (Continue) {
                 // Init AudioFrame
                 AVRational AVR;
 
-                #if (FFMPEGVERSIONINT>=220)
-                    av_frame_unref(AudioFrame);
-                #else
-                    avcodec_get_frame_defaults(AudioFrame);
-                #endif
+                av_frame_unref(AudioFrame);
 
                 AVR.num                     =1;
-                AVR.den                     =AudioStream->codec->sample_rate;
+                AVR.den                     =AudioCodecCtx->sample_rate;
                 AudioFrame->nb_samples      =DestPacketSize/DestSampleSize;
                 AudioFrame->pts             =av_rescale_q(AudioFrame->nb_samples*AudioFrameNbr,AVR,AudioStream->time_base);
-                #if (defined(LIBAV) && (LIBAVVERSIONINT>=9)) || defined(FFMPEG)
-                AudioFrame->format          =AudioStream->codec->sample_fmt;
-                AudioFrame->channel_layout  =AudioStream->codec->channel_layout;
-                #endif
+                AudioFrame->format          =AudioCodecCtx->sample_fmt;
+                AudioFrame->channel_layout  =AudioCodecCtx->channel_layout;
+                AudioFrame->channels        =AudioCodecCtx->channels;
 
                 // fill buffer
-                errcode=avcodec_fill_audio_frame(AudioFrame,AudioStream->codec->channels,AudioStream->codec->sample_fmt,(const u_int8_t*)DestPacket,DestPacketSize,1);
+                errcode=avcodec_fill_audio_frame(AudioFrame,AudioCodecCtx->channels,AudioCodecCtx->sample_fmt,(const uint8_t*)DestPacket,DestPacketSize,1);
                 if (errcode>=0) {
                     // Init packet
-                    AVPacket pkt;
-                    av_init_packet(&pkt);
-                    pkt.size=0;
-                    pkt.data=NULL;
+                    AVPacket *pkt = av_packet_alloc();
+                    pkt->size=0;
+                    pkt->data=NULL;
 
-                    int got_packet=0;
-                    errcode=avcodec_encode_audio2(AudioStream->codec,&pkt,AudioFrame,&got_packet);
+                    errcode=avcodec_send_frame(AudioCodecCtx,AudioFrame);
                     if (errcode<0) {
                         char Buf[2048];
                         av_strerror(errcode,Buf,2048);
-                        ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: avcodec_encode_audio2() failed: ")+QString(Buf));
+                        ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: avcodec_send_frame failed: ")+QString(Buf));
                         Continue=false;
-                    } else if (got_packet) {
-                        pkt.flags|=AV_PKT_FLAG_KEY;
-
-                        if (AudioStream->codec->coded_frame && AudioStream->codec->coded_frame->pts!=(int64_t)AV_NOPTS_VALUE)
-                            pkt.pts=av_rescale_q(AudioStream->codec->coded_frame->pts,AudioStream->codec->time_base,AudioStream->time_base);
-
-                        // write the compressed frame in the media file
-                        pkt.stream_index=AudioStream->index;
+                    }
+                    errcode=avcodec_receive_packet(AudioCodecCtx, pkt);
+                    if (errcode==0) {
+                        pkt->stream_index=AudioStream->index;
 
                         // Encode frame
                         Mutex.lock();
+                        
                         if (InterleaveFrame) {
-                            errcode=av_interleaved_write_frame(Container,&pkt);
+                            errcode=av_interleaved_write_frame(Container,pkt);
                         } else {
-                            pkt.pts=AV_NOPTS_VALUE;
-                            pkt.dts=AV_NOPTS_VALUE;
-                            errcode=av_write_frame(Container,&pkt);
+                            pkt->pts=AV_NOPTS_VALUE;
+                            pkt->dts=AV_NOPTS_VALUE;
+                            errcode=av_write_frame(Container,pkt);
                         }
+                        
                         Mutex.unlock();
 
                         if (errcode!=0) {
                             char Buf[2048];
                             av_strerror(errcode,Buf,2048);
-                            ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: av_interleaved_write_frame failed: ")+QString(Buf));
+                            ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: write_frame failed: ")+QString(Buf));
                             Continue=false;
                         }
                     }
-
                     LastAudioPts+=IncreasingAudioPts;
                     AudioFrameNbr++;
-                    //ToLog(LOGMSG_INFORMATION,QString("Audio:  Stream:%1 - Frame:%2 - PTS:%3").arg(AudioStream->index).arg(AudioFrameNbr).arg(LastAudioPts));
+                    av_packet_free(&pkt);
                 } else {
                     char Buf[2048];
                     av_strerror(errcode,Buf,2048);
@@ -1151,11 +937,8 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
 
         }
         av_free(PacketSound);
-
-        #if defined(USELIBSWRESAMPLE)
         av_free(AudioResamplerBuffer);
         AudioResamplerBuffer=NULL;
-        #endif
     }
 
 }
@@ -1167,38 +950,33 @@ void cEncodeVideo::EncodeVideo(QImage *SrcImage,bool &Continue) {
     int     errcode;
 
     if (Image) {
-        #if (FFMPEGVERSIONINT>=220)
-            av_frame_unref(VideoFrame);
-        #else
-            avcodec_get_frame_defaults(VideoFrame);
-        #endif
-        if (avpicture_fill(
-            (AVPicture *)VideoFrame,            // Frame to prepare
-            VideoFrameBuf,                      // Buffer which will contain the image data
-            VideoStream->codec->pix_fmt,        // The format in which the picture data is stored
-            VideoStream->codec->width,          // The width of the image in pixels
-            VideoStream->codec->height          // The height of the image in pixels
+        av_frame_unref(VideoFrame);
+        
+        if (av_image_fill_arrays(
+            VideoFrame->data,              // Frame to prepare
+            VideoFrame->linesize,
+            VideoFrameBuf,                 // Buffer which will contain the image data
+            VideoCodecCtx->pix_fmt,        // The format in which the picture data is stored
+            VideoCodecCtx->width,          // The width of the image in pixels
+            VideoCodecCtx->height,         // The height of the image in pixels
+            1
         )!=VideoFrameBufSize) {
             ToLog(LOGMSG_CRITICAL,"EncodeVideo-EncodeVideo: avpicture_fill() failed for VideoFrameBuf");
             return;
         }
         // Apply ExtendV
-        if ((Continue)&&(!StopProcessWanted)&&(Image->height()!=VideoStream->codec->height)) {
-            Image=new QImage(InternalWidth,VideoStream->codec->height,QTPIXFMT);
+        if ((Continue)&&(!StopProcessWanted)&&(Image->height()!=VideoCodecCtx->height)) {
+            Image=new QImage(InternalWidth,VideoCodecCtx->height,QTPIXFMT);
             QPainter P;
             P.begin(Image);
             P.fillRect(QRect(0,0,Image->width(),Image->height()),Qt::black);
-            P.drawImage(0,(VideoStream->codec->height-SrcImage->height())/2,*SrcImage);
+            P.drawImage(0,(VideoCodecCtx->height-SrcImage->height())/2,*SrcImage);
             P.end();
         }
 
         // Now, convert image
         if ((Continue)&&(!StopProcessWanted)) {
-            #ifdef USELIBSWRESAMPLE
-            u_int8_t *data={(u_int8_t *)Image->bits()};
-            #else
-            u_int8_t *data=(u_int8_t *)Image->bits();
-            #endif
+            uint8_t *data={(uint8_t *)Image->bits()};
             int LineSize=Image->bytesPerLine();
             int Ret=sws_scale(
                 VideoFrameConverter,    // libswscale converter
@@ -1216,69 +994,59 @@ void cEncodeVideo::EncodeVideo(QImage *SrcImage,bool &Continue) {
         }
     }
 
-    if ((VideoFrameNbr%VideoStream->codec->gop_size)==0) VideoFrame->pict_type=AV_PICTURE_TYPE_I;
-        else VideoFrame->pict_type=(AVPictureType)0;
+    if ((VideoFrameNbr%VideoCodecCtx->gop_size)==0)
+        VideoFrame->pict_type=AV_PICTURE_TYPE_I;
+    else
+        VideoFrame->pict_type=(AVPictureType)0;
     VideoFrame->pts=VideoFrameNbr;
-    VideoFrame->format=VideoStream->codec->pix_fmt;
-    VideoFrame->width=VideoStream->codec->width;
-    VideoFrame->height=VideoStream->codec->height;
+    VideoFrame->format=VideoCodecCtx->pix_fmt;
+    VideoFrame->width=VideoCodecCtx->width;
+    VideoFrame->height=VideoCodecCtx->height;
 
 
     if ((Continue)&&(!StopProcessWanted)) {
 
-        AVPacket pkt;
-        av_init_packet(&pkt);
-        pkt.size=0;
-        pkt.data=NULL;
+        AVPacket *pkt = av_packet_alloc();
+        pkt->size=0;
+        pkt->data=NULL;
 
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-        int out_size=avcodec_encode_video(VideoStream->codec,VideoEncodeBuffer,VideoEncodeBufferSize,VideoFrame);
-        if (out_size<0) {
-            ToLog(LOGMSG_CRITICAL,QString("EncodeVideo: avcodec_encode_video failed"));
-            Continue=false;
-        } else if (out_size>0) {
-            pkt.data=VideoEncodeBuffer;
-            pkt.size=out_size;
-            if (VideoStream->codec->coded_frame && VideoStream->codec->coded_frame->pts!=(int64_t)AV_NOPTS_VALUE)
-                pkt.pts=av_rescale_q(VideoStream->codec->coded_frame->pts,VideoStream->codec->time_base,VideoStream->time_base);
-        #else
-        int got_packet=0;
-        errcode=avcodec_encode_video2(VideoStream->codec,&pkt,VideoFrame,&got_packet);
-        if (errcode!=0) {
+        errcode=avcodec_send_frame(VideoCodecCtx,VideoFrame);
+        if (errcode<0) {
             char Buf[2048];
             av_strerror(errcode,Buf,2048);
-            ToLog(LOGMSG_CRITICAL,QString("EncodeVideo: avcodec_encode_video2 failed")+QString(Buf));
+            ToLog(LOGMSG_CRITICAL,QString("EncodeVideo: avcodec_send_frame failed")+QString(Buf));
             Continue=false;
-        } else if (got_packet) {
-            if (pkt.dts!=(int64_t)AV_NOPTS_VALUE) pkt.dts=av_rescale_q(pkt.dts,VideoStream->codec->time_base,VideoStream->time_base);
-            if (pkt.pts!=(int64_t)AV_NOPTS_VALUE) pkt.pts=av_rescale_q(pkt.pts,VideoStream->codec->time_base,VideoStream->time_base);
-        #endif
-
-            pkt.stream_index=VideoStream->index;
-            if (VideoStream->codec->coded_frame && VideoStream->codec->coded_frame->key_frame) pkt.flags|=AV_PKT_FLAG_KEY;
-
+        }
+        errcode=avcodec_receive_packet(VideoCodecCtx, pkt);
+        if (errcode==0) {
+            if (pkt->dts!=AV_NOPTS_VALUE) pkt->dts=av_rescale_q(pkt->dts,VideoCodecCtx->time_base,VideoStream->time_base);
+            if (pkt->pts!=AV_NOPTS_VALUE) pkt->pts=av_rescale_q(pkt->pts,VideoCodecCtx->time_base,VideoStream->time_base);
+            pkt->duration=av_rescale_q(pkt->duration,VideoCodecCtx->time_base,VideoStream->time_base);
+            pkt->stream_index=VideoStream->index;
+            
             // Encode frame
             Mutex.lock();
+            
             if (InterleaveFrame) {
-                errcode=av_interleaved_write_frame(Container,&pkt);
+                errcode=av_interleaved_write_frame(Container,pkt);
             } else {
-                pkt.pts=AV_NOPTS_VALUE;
-                pkt.dts=AV_NOPTS_VALUE;
-                errcode=av_write_frame(Container,&pkt);
+                pkt->dts=AV_NOPTS_VALUE;
+                pkt->pts=AV_NOPTS_VALUE;
+                errcode=av_write_frame(Container,pkt);
             }
             Mutex.unlock();
 
             if (errcode!=0) {
                 char Buf[2048];
                 av_strerror(errcode,Buf,2048);
-                ToLog(LOGMSG_CRITICAL,QString("EncodeVideo: av_interleaved_write_frame failed: ")+QString(Buf));
+                ToLog(LOGMSG_CRITICAL,QString("EncodeVideo: write_frame failed: ")+QString(Buf));
                 Continue=false;
             }
         }
 
         LastVideoPts+=IncreasingVideoPts;
         VideoFrameNbr++;
-        //ToLog(LOGMSG_INFORMATION,QString("Video:  Stream:%1 - Frame:%2 - PTS:%3").arg(VideoStream->index).arg(VideoFrameNbr).arg(LastVideoPts));
+        av_packet_free(&pkt);
 
         if ((VideoFrame->extended_data)&&(VideoFrame->extended_data!=VideoFrame->data)) {
             av_free(VideoFrame->extended_data);

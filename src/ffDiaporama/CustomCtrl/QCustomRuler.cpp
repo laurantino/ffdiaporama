@@ -152,11 +152,7 @@ void QCustomRuler::PrepareSoundWave() {
     WhitePen.setStyle(Qt::SolidLine);
     QFont font= QApplication::font();
     Painter.setFont(font);
-    #ifdef Q_OS_WIN
-    font.setPointSizeF(double(90)/ScaleFontAdjust);                    // Scale font
-    #else
     font.setPointSizeF((double(110)/ScaleFontAdjust)*ScreenFontAdjust);// Scale font
-    #endif
     Painter.setFont(font);
     int HFont=Painter.fontMetrics().height();
     if (Height-SoundLevel*Height-HFont>0) {
@@ -278,16 +274,11 @@ void QCustomRuler::paintEvent(QPaintEvent *) {
         Painter.fillRect(QRect(1,1,qreal(Analysed)*qreal(Width-2),Height-32-2),QColor(Qt::blue));
         Painter.setOpacity(1);
     } else {
-
-        #ifdef Q_OS_WIN
-        font.setPointSizeF(double(90)/ScaleFontAdjust);                    // Scale font
-        #else
         font.setPointSizeF((double(110)/ScaleFontAdjust)*ScreenFontAdjust);// Scale font
-        #endif
         Painter.setFont(font);
 
         // Prepare QPainter and calc positions
-        int         WidthTick   =Painter.fontMetrics().width("00:00");
+        int         WidthTick   =Painter.fontMetrics().horizontalAdvance("00:00");
         long        PosStart    =TotalDuration!=0?long((Width-TAQUET_SIZE*2)*(double(StartPos)/double(TotalDuration))):0;
         long        PosEnd      =TotalDuration!=0?long((Width-TAQUET_SIZE*2)*(double(EndPos)/double(TotalDuration))):0;
         QPen        Pen;

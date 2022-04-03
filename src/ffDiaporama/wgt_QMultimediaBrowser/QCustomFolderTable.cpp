@@ -78,6 +78,7 @@ cBaseMediaFile *MediaFileItem::CreateBaseMediaFile() const {
         case OBJECTTYPE_MANAGED:
         case OBJECTTYPE_GMAPSMAP:       break;  // to avoid warning
     }
+    
     if (MediaObject) {
         MediaObject->ObjectType=ObjectType;
         MediaObject->FolderKey =FolderKey;
@@ -214,11 +215,7 @@ void QCustomStyledItemDelegate::paint(QPainter *Painter,const QStyleOptionViewIt
                 font=QFont("Sans serif",8,QFont::Normal,QFont::StyleNormal);
                 font.setUnderline(false);
                 Painter->setFont(font);
-                #ifdef Q_OS_WIN
-                font.setPointSizeF(double(120)/double(Painter->fontMetrics().boundingRect("0").height()));                      // Scale font
-                #else
                 font.setPointSizeF((double(100)/double(Painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust);   // Scale font
-                #endif
                 Painter->setFont(font);
 
                 OptionText=QTextOption(Qt::AlignHCenter|Qt::AlignTop);                      // Setup alignement
@@ -512,11 +509,7 @@ void QCustomFolderTable::SetMode() {
         Painter.begin(&Img);
         QFont font("Sans serif",8,QFont::Normal,QFont::StyleNormal);
         Painter.setFont(font);
-        #ifdef Q_OS_WIN
-        font.setPointSizeF(double(120)/ScaleFontAdjust);                   // Scale font
-        #else
         font.setPointSizeF((double(100)/ScaleFontAdjust)*ScreenFontAdjust);// Scale font
-        #endif
         Painter.setFont(font);
         DISPLAYFILENAMEHEIGHT=Painter.fontMetrics().boundingRect("0").height()*2;                                   // 2 lines for bigest mode
         Painter.end();
@@ -542,17 +535,10 @@ void QCustomFolderTable::SetMode() {
     verticalHeader()->setSortIndicatorShown(false);
     verticalHeader()->hide();
 
-    #if QT_VERSION >= 0x050000
     horizontalHeader()->setSectionsClickable(false);
     horizontalHeader()->setSectionsMovable(false);
     horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);          //Fixed because ResizeToContents will be done after table filling
     verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);            // Fixed because ResizeToContents will be done after table filling
-    #else
-    horizontalHeader()->setClickable(false);
-    horizontalHeader()->setMovable(false);
-    horizontalHeader()->setResizeMode(QHeaderView::Fixed);          //Fixed because ResizeToContents will be done after table filling
-    verticalHeader()->setResizeMode(QHeaderView::Fixed);            // Fixed because ResizeToContents will be done after table filling
-    #endif
 
     setItemDelegate(IconDelegate);
 
@@ -820,12 +806,7 @@ void QCustomFolderTable::FillListFolder(QString Path) {
 
     // Adjust given Path
     if (Path.startsWith(QApplication::translate("QCustomFolderTree","Clipart"))) Path=ClipArtFolder+Path.mid(QApplication::translate("QCustomFolderTree","Clipart").length());
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     if (Path.startsWith("~")) Path=QDir::homePath()+Path.mid(1);
-    #else
-    if (Path.startsWith(PersonalFolder)) Path=QDir::homePath()+Path.mid(PersonalFolder.length());
-    Path=QDir::toNativeSeparators(Path);
-    #endif
     if (!Path.endsWith(QDir::separator())) Path=Path+QDir::separator();
 
     // Manage history
@@ -913,9 +894,9 @@ void QCustomFolderTable::FillListFolder(QString Path) {
 
     // Sort files in the fileList
     bShowFoldersFirst=ShowFoldersFirst;
-    if          (SortFile==SORTORDER_BYNUMBER)    qSort(MediaList.begin(),MediaList.end(),ByNumber);
-        else if (SortFile==SORTORDER_BYNAME)      qSort(MediaList.begin(),MediaList.end(),ByName);
-        else if (SortFile==SORTORDER_BYDATE)      qSort(MediaList.begin(),MediaList.end(),ByDate);
+    if          (SortFile==SORTORDER_BYNUMBER)    std::sort(MediaList.begin(),MediaList.end(),ByNumber);
+        else if (SortFile==SORTORDER_BYNAME)      std::sort(MediaList.begin(),MediaList.end(),ByName);
+        else if (SortFile==SORTORDER_BYDATE)      std::sort(MediaList.begin(),MediaList.end(),ByDate);
 
     //**********************************************************
 
@@ -953,9 +934,6 @@ bool QCustomFolderTable::CanBrowseToUpperPath() {
     if (BrowsePathList.count()>0) {
         QString Path=QDir::toNativeSeparators(BrowsePathList[BrowsePathList.count()-1]);     // Actual folder
         if (Path.endsWith(QDir::separator())) Path=Path.left(Path.length()-1);
-        #ifdef Q_OS_WIN
-        if ((Path.length()==2)&&(Path.at(1)==':')) return false;    // if it's a drive !
-        #endif
         QStringList PathList=Path.split(QDir::separator());
         return PathList.count()>0;
     } else return false;
@@ -968,15 +946,8 @@ QString QCustomFolderTable::BrowseToUpperPath() {
     if (BrowsePathList.count()>0) {
         Path=QDir::toNativeSeparators(BrowsePathList[BrowsePathList.count()-1]);     // Actual folder
         if (Path.endsWith(QDir::separator())) Path=Path.left(Path.length()-1);
-        #ifdef Q_OS_WIN
-        if ((Path.length()==2)&&(Path.at(1)==':')) return "";    // if it's a drive !
-        #endif
         QStringList PathList=Path.split(QDir::separator());
-        #ifdef Q_OS_WIN
-        Path="";
-        #else
         if ((PathList.count()>0)&&(PathList[0]=="")) Path="/"; else Path="";
-        #endif
         for (int i=0;i<PathList.count()-1;i++) {
             if ((Path!="")&&(!Path.endsWith(QDir::separator()))) Path=Path+QDir::separator();
             Path=Path+PathList[i];
@@ -1054,7 +1025,7 @@ void QCustomFolderTable::DoResizeColumns() {
                 Painter.setFont(font);
 
                 QFontMetrics fm  =Painter.fontMetrics();
-                int          Size=fm.width(TextToDisplay)+4+DecalX;
+                int          Size=fm.horizontalAdvance(TextToDisplay)+4+DecalX;
                 if (ColSize[Col]<Size) ColSize[Col]=Size;
             }
             Painter.end();
@@ -1086,11 +1057,7 @@ void QCustomFolderTable::AppendMediaToTable(cBaseMediaFile *MediaObject) {
     if (CurrentMode==DISPLAY_DATA) {
 
         insertRow(Row);
-        #if QT_VERSION >= 0x050000
         verticalHeader()->setSectionResizeMode(Row,QHeaderView::Fixed);
-        #else
-        verticalHeader()->setResizeMode(Row,QHeaderView::Fixed);
-        #endif
         setRowHeight(Row,GetHeightForIcon()+2);
 
     } else {
@@ -1100,11 +1067,7 @@ void QCustomFolderTable::AppendMediaToTable(cBaseMediaFile *MediaObject) {
         // Check if we need to create a new line
         if (CurrentDisplayItem/NbrCol==rowCount()) {
             insertRow(Row);
-            #if QT_VERSION >= 0x050000
             verticalHeader()->setSectionResizeMode(Row,QHeaderView::Fixed);
-            #else
-            verticalHeader()->setResizeMode(Row,QHeaderView::Fixed);
-            #endif
             setRowHeight(Row,GetHeightForIcon());
         } else {
             Row--;

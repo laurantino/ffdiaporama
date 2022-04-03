@@ -82,7 +82,7 @@ void wgt_QEditVideo::DoInitWidget(QCustomDialog *ParentDialog,cBrushDefinition *
     ResetPositionWanted     = false;
     Deinterlace             = false;
 
-    AudioBuf                = (u_int8_t *)malloc(AUDIOBUFSIZE);
+    AudioBuf                = (uint8_t *)malloc(AUDIOBUFSIZE);
     AudioBufSize            = 0;
 
     MixedMusic.SetFPS(double(1000)/ApplicationConfig->PreviewFPS,2,ApplicationConfig->PreviewSamplingRate,AV_SAMPLE_FMT_S16);
@@ -159,15 +159,13 @@ void wgt_QEditVideo::DoInitDialog() {
     SetCurrentPos(FileInfo->StartPos);
     RefreshControls();
 
-    if (FileInfo->LibavStartTime>0) ui->VideoStartLabel->setText(QApplication::translate("wgt_QEditVideo","Video stream start position is %1").arg(QTime(0,0,0,0).addMSecs(FileInfo->LibavStartTime/1000).toString("hh:mm:ss.zzz")));
+    if (FileInfo->FFMPEGstartTime>0) ui->VideoStartLabel->setText(QApplication::translate("wgt_QEditVideo","Video stream start position is %1").arg(QTime(0,0,0,0).addMSecs(FileInfo->FFMPEGstartTime/1000).toString("hh:mm:ss.zzz")));
         else ui->VideoStartLabel->setText("");
 
     audio_outputStream->setBufferSize(MixedMusic.NbrPacketForFPS*MixedMusic.SoundPacketSize*BUFFERING_NBR_AUDIO_FRAME);
     audio_outputDevice=audio_outputStream->start();
     AudioPlayed=0;
-    #if QT_VERSION >= 0x050000
     audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-    #endif
     audio_outputStream->suspend();
 }
 
@@ -422,12 +420,11 @@ void wgt_QEditVideo::SetPlayerToPlay(bool force) {
                                      break;
         case QAudio::StoppedState:   audio_outputDevice=audio_outputStream->start();
                                      AudioPlayed=0;
-                                     #if QT_VERSION >= 0x050000
                                      audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-                                     #endif
                                      break;
         case QAudio::ActiveState:    qDebug()<<"ActiveState";                           break;
         case QAudio::IdleState:      qDebug()<<"IdleState";                             break;
+        case QAudio::InterruptedState:      qDebug()<<"InterruptedState";               break;
     }
     Timer.start(int(double(1000)/WantedFPS)/2);   // Start Timer
     PlayerMutex.unlock();
@@ -553,12 +550,7 @@ void wgt_QEditVideo::s_TimerEvent() {
 
     TimerTick=!TimerTick;
 
-    #ifdef Q_OS_WIN
-    // Trylock is always true on Windows instead of unix/linux system
-    if (TimerTick) {
-    #else
     if (!PlayerMutex.tryLock()) { if (!TimerTick) return; else {
-    #endif
         /*
         // specific case for windows because never a timer event can happens if a previous timer event was not ended
         // so next trylock is always true
@@ -579,11 +571,7 @@ void wgt_QEditVideo::s_TimerEvent() {
         }
         */
     }
-    #ifdef Q_OS_WIN
-    PlayerMutex.lock();
-    #else
     return;}
-    #endif
     if (ThreadPrepareVideo.isRunning()) ThreadPrepareVideo.waitForFinished();
 
     int64_t LastPosition=0,NextPosition=0;

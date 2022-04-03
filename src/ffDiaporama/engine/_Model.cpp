@@ -135,7 +135,7 @@ QImage cModelListItem::PrepareImage(int64_t Position,cDiaporama *DiaporamaToUse,
 
     QPainter P;
     P.begin(&Thumb);
-    P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen);
+    P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform);
     P.setCompositionMode(QPainter::CompositionMode_SourceOver);
     QList<cCompositionObjectContext *>PreparedBrushList;
 

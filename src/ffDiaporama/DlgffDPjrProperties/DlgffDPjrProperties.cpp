@@ -23,10 +23,8 @@
 
 #include "cTextFrame.h"
 #include "cTexteFrameComboBox.h"
-#include "engine/cLocation.h"
 
 #include "DlgSlide/DlgImageComposer.h"
-#include "DlgGMapsLocation/DlgGMapsLocation.h"
 
 //====================================================================================================================
 
@@ -35,8 +33,6 @@ DlgffDPjrProperties::DlgffDPjrProperties(bool IsPrjCreate,cDiaporama *ffdProject
 
     this->IsPrjCreate=IsPrjCreate;
     this->ffdProject =ffdProject;
-    IsLocationChanged=false;
-    AllowGMapRefresh =true;
 
     ui->setupUi(this);
     CancelBt=ui->CancelBt;
@@ -98,14 +94,6 @@ void DlgffDPjrProperties::DoInitDialog() {
     ui->ThumbCB->PrepareTable(true,ApplicationConfig->ThumbnailModels);
     ui->ThumbCB->SetCurrentModel(ffdProject->ThumbnailName);
 
-    if (ffdProject->ProjectInfo->Location) {
-        ui->Location->setText(QString("%1 (%2)").arg(((cLocation *)ffdProject->ProjectInfo->Location)->Name).arg(((cLocation *)ffdProject->ProjectInfo->Location)->FriendlyAddress));
-        ui->LocationIcon->setPixmap(QPixmap().fromImage(((cLocation *)ffdProject->ProjectInfo->Location)->GetThumb(16)));
-    } else {
-        ui->Location->setText("");
-        ui->LocationIcon->setPixmap(QPixmap());
-    }
-
     // Define handler
     connect(ui->DateEdit,SIGNAL(dateChanged(const QDate &)),this,SLOT(EventDateChanged(const QDate &)));
     connect(ui->OverrideDateCB,SIGNAL(stateChanged(int)),this,SLOT(OverrideDateChanged(int)));
@@ -116,8 +104,6 @@ void DlgffDPjrProperties::DoInitDialog() {
     connect(ui->TitleED,SIGNAL(textChanged(QString)),this,SLOT(TitleChanged(QString)));
     connect(ui->AlbumED,SIGNAL(textChanged(QString)),this,SLOT(AlbumChanged(QString)));
     connect(ui->AuthorED,SIGNAL(textChanged(QString)),this,SLOT(AuthorChanged(QString)));
-    connect(ui->LocationBT,SIGNAL(pressed()),this,SLOT(SelectLocation()));
-    connect(ui->ClearLocationBT,SIGNAL(pressed()),this,SLOT(ClearLocation()));
 
     ui->ThumbCB->MakeIcons();    // Refresh icons for curstom combo
     ThumbChanged();
@@ -126,7 +112,7 @@ void DlgffDPjrProperties::DoInitDialog() {
 //====================================================================================================================
 
 DlgffDPjrProperties::~DlgffDPjrProperties() {
-    ffdProject->CloseUnusedLibAv(ffdProject->CurrentCol);
+    ffdProject->CloseUnusedFFMPEG(ffdProject->CurrentCol);
     delete ui;
 }
 
@@ -137,7 +123,7 @@ void DlgffDPjrProperties::PrepareGlobalUndo() {
     // Save object before modification for cancel button
     Undo=new QDomDocument(APPLICATION_NAME);
     QDomElement root=Undo->createElement("UNDO-DLG"); // Create xml document and root
-    ffdProject->ProjectInfo->SaveToXML(&root,"",ffdProject->ProjectFileName,true,NULL,NULL,false);
+    ffdProject->ProjectInfo->SaveToXML(&root);
     ffdProject->ProjectThumbnail->SaveToXML(root,"UNDO-DLG-ProjectThumbnail",ffdProject->ProjectFileName,true,NULL,NULL,false);
     Undo->appendChild(root); // Add object to xml document
 }
@@ -148,7 +134,7 @@ void DlgffDPjrProperties::PrepareGlobalUndo() {
 void DlgffDPjrProperties::DoGlobalUndo() {
     QDomElement root=Undo->documentElement();
     if (root.tagName()=="UNDO-DLG") {
-        ffdProject->ProjectInfo->LoadFromXML(&root,"",ffdProject->ProjectFileName,NULL,NULL,NULL,false,true);
+        ffdProject->ProjectInfo->LoadFromXML(&root);
         ffdProject->ProjectThumbnail->LoadFromXML(root,"UNDO-DLG-ProjectThumbnail","",NULL,NULL,false);
     }
 }
@@ -169,8 +155,6 @@ bool DlgffDPjrProperties::DoAccept() {
     ffdProject->BlockAnimSpeedWave          =ui->BlockSpeedWaveCB->GetCurrentValue();
     ffdProject->ImageAnimSpeedWave          =ui->ImageSpeedWaveCB->GetCurrentValue();
     ffdProject->ThumbnailName               =ui->ThumbCB->GetCurrentModel();
-
-    if (IsLocationChanged && AllowGMapRefresh) ffdProject->UpdateGMapsObject();
 
     return true;
 }
@@ -325,71 +309,4 @@ void DlgffDPjrProperties::ThumbChanged() {
 #define FAVACTIONTYPE_EDIT          0x1000
 #define FAVACTIONTYPE_SELECT        0x8000
 
-void DlgffDPjrProperties::SelectLocation() {
-    QMenu       *ContextMenu=new QMenu(this);
-    bool        AddSep=false;
-
-    QAction     *Add=CreateMenuAction(QIcon(":/img/gmap_add.png"),
-                                      ffdProject->ProjectInfo->Location?QApplication::translate("MainWindow","Edit this location"):QApplication::translate("MainWindow","Define a location"),
-                                      FAVACTIONTYPE_EDIT,false,false,this);
-    ContextMenu->addAction(Add);
-
-    QSqlQuery   Query(ApplicationConfig->Database->db);
-    QString     QueryString("SELECT Key,Name,FAddress,Thumbnail FROM Location ORDER BY LOWER(Name)");
-    Query.prepare(QueryString);
-    if (!Query.exec()) DisplayLastSQLError(&Query); else while (Query.next()) {
-        bool      Ret;
-        qlonglong Key=Query.value(0).toLongLong(&Ret);
-        if (Ret) {
-            if (!AddSep) {
-                ContextMenu->addSeparator();
-                AddSep=true;
-            }
-            QString     Name   =Query.value(1).toString();
-            QString     Address=Query.value(2).toString();
-            QByteArray  Data   =Query.value(3).toByteArray();
-            QImage      Thumb; Thumb.loadFromData(Data);
-            bool        IsCurrent=(Key==(ffdProject->ProjectInfo->Location?((cLocation *)ffdProject->ProjectInfo->Location)->FavKey:-1));
-            QAction *Act=CreateMenuAction(QIcon(QPixmap().fromImage(Thumb)),QString("%1 (%2)").arg(Name).arg(Address),FAVACTIONTYPE_SELECT+Key,true,IsCurrent,this);
-            ContextMenu->addAction(Act);
-        }
-    }
-
-    QAction *Action=ContextMenu->exec(QCursor::pos());
-    if (Action) {
-        int ActionType=Action->data().toInt() & FAVACTIONTYPE_ACTIONTYPE;
-        if (ActionType==FAVACTIONTYPE_EDIT) {
-            cLocation *PrevLocation=(cLocation *)ffdProject->ProjectInfo->Location;
-            if (!((cLocation *)ffdProject->ProjectInfo->Location)) ffdProject->ProjectInfo->Location=new cLocation(ApplicationConfig);
-            DlgGMapsLocation Dlg((cLocation *)ffdProject->ProjectInfo->Location,ApplicationConfig,this);
-            Dlg.InitDialog();
-            if ((Dlg.exec()!=0)&&(!PrevLocation)) {
-                delete (cLocation *)ffdProject->ProjectInfo->Location;
-                ffdProject->ProjectInfo->Location=NULL;
-            }
-        } else if (Action->text()!="") {
-            qlonglong Key=Action->data().toInt() & ~FAVACTIONTYPE_ACTIONTYPE;
-            if (!ffdProject->ProjectInfo->Location) ffdProject->ProjectInfo->Location=new cLocation(ApplicationConfig);
-            ((cLocation *)ffdProject->ProjectInfo->Location)->LoadFromFavorite(Key);
-        }
-    }
-    ui->LocationBT->setDown(false);
-    if (ffdProject->ProjectInfo->Location) {
-        ui->Location->setText(QString("%1 (%2)").arg(((cLocation *)ffdProject->ProjectInfo->Location)->Name).arg(((cLocation *)ffdProject->ProjectInfo->Location)->FriendlyAddress));
-        ui->LocationIcon->setPixmap(QPixmap().fromImage(((cLocation *)ffdProject->ProjectInfo->Location)->GetThumb(16)));
-    } else {
-        ui->Location->setText("");
-        ui->LocationIcon->setPixmap(QPixmap());
-    }
-    IsLocationChanged=true;
-}
-
 //====================================================================================================================
-
-void DlgffDPjrProperties::ClearLocation() {
-    if (ffdProject->ProjectInfo->Location) delete ((cLocation *)ffdProject->ProjectInfo->Location);
-    ffdProject->ProjectInfo->Location=NULL;
-    ui->Location->setText("");
-    ui->LocationIcon->setPixmap(QPixmap());
-    IsLocationChanged=true;
-}

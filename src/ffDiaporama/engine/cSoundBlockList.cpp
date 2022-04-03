@@ -28,7 +28,7 @@ cSoundBlockList::cSoundBlockList() {
     CurrentTempSize     =0;                                                                 // Amount of data in the TempData buffer
     CurrentPosition     =-1;
     SoundPacketSize     =MAXSOUNDPACKETSIZE;                                                // Size of a packet (depending on FPS)
-    TempData            =(u_int8_t *)av_malloc(SoundPacketSize+8);                           // Buffer for stocking temporary data (when decoding data are less than a packet)
+    TempData            =(uint8_t *)av_malloc(SoundPacketSize+8);                           // Buffer for stocking temporary data (when decoding data are less than a packet)
     Channels            =2;                                                                 // Number of channels
     SamplingRate        =48000;                                                             // Sampling rate (frequency)
     SampleBytes         =2;                                                                 // 16 bits : Size of a sample
@@ -87,7 +87,7 @@ void cSoundBlockList::SetFPS(double TheWantedDuration,int TheChannels,int64_t Th
         av_free(TempData);
         TempData=NULL;
     }
-    TempData=(u_int8_t *)av_malloc(SoundPacketSize+8);
+    TempData=(uint8_t *)av_malloc(SoundPacketSize+8);
 }
 
 //====================================================================================================================
@@ -106,7 +106,7 @@ void cSoundBlockList::SetFrameSize(int FrameSize,int TheChannels,int64_t TheSamp
         av_free(TempData);
         TempData=NULL;
     }
-    TempData=(u_int8_t *)av_malloc(SoundPacketSize+8);
+    TempData=(uint8_t *)av_malloc(SoundPacketSize+8);
 }
 
 //====================================================================================================================
@@ -234,16 +234,12 @@ void cSoundBlockList::EnsureNoNullAtStart() {
 // Append data to the list creating packet as necessary and filling TempData
 //====================================================================================================================
 void cSoundBlockList::AppendData(int64_t Position,int16_t *Data,int64_t DataLen) {
-    u_int8_t *CurData=(u_int8_t *)Data;
+    uint8_t *CurData=(uint8_t *)Data;
     // Cut data to Packet
     while ((DataLen+CurrentTempSize>=SoundPacketSize)) {
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            u_int8_t *Packet=(u_int8_t *)av_malloc(SoundPacketSize+8);
-        #else
-            u_int8_t *Packet=NULL;
-            int     out_linesize=0;
-            av_samples_alloc(&Packet,&out_linesize,Channels,SoundPacketSize+8,SampleFormat,1);
-        #endif
+        uint8_t *Packet=NULL;
+        int     out_linesize=0;
+        av_samples_alloc(&Packet,&out_linesize,Channels,SoundPacketSize+8,SampleFormat,1);
         if (Packet) {
             if (CurrentTempSize>0) {                                // Use previously data store in TempData
                 int DataToUse=SoundPacketSize-CurrentTempSize;

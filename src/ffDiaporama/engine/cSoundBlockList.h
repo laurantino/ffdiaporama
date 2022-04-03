@@ -27,7 +27,7 @@
 // Include some additional standard class
 #include <QList>
 
-#include "cDeviceModelDef.h"                // Contains libav include
+#include "cDeviceModelDef.h"                // Contains ffmpeg includes
 
 #define MAXSOUNDPACKETSIZE     3840
 
@@ -48,7 +48,7 @@ public:
     double              dDuration;                  // Duration of a packet (in msec)
     double              FPS;
     QMutex              Mutex;
-    u_int8_t            *TempData;                  // Buffer for stocking temporary data (when decoding data are less than a packet)
+    uint8_t            *TempData;                  // Buffer for stocking temporary data (when decoding data are less than a packet)
 
     cSoundBlockList();
     virtual         ~cSoundBlockList();

@@ -62,11 +62,7 @@ void cCustomTitleModelItem::paint(QPainter *painter,const QStyleOptionViewItem &
         QPen   Pen;
 
         painter->setFont(font);
-        #ifdef Q_OS_WIN
-        font.setPointSizeF(double(110+FontFactor)/double(painter->fontMetrics().boundingRect("0").height()));                  // Scale font
-        #else
         font.setPointSizeF((double(140+FontFactor)/double(painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust);// Scale font
-        #endif
         painter->setFont(font);
 
         Pen.setWidth(1);

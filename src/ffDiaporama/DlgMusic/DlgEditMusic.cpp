@@ -47,7 +47,7 @@ DlgEditMusic::DlgEditMusic(cMusicObject *TheMusicObject,cApplicationConfig *Appl
     ActualPosition      =-1;
     ResetPositionWanted =false;
 
-    AudioBuf            =(u_int8_t *)malloc(AUDIOBUFSIZE);
+    AudioBuf            =(uint8_t *)malloc(AUDIOBUFSIZE);
     AudioBufSize        =0;
 
     MixedMusic.SetFPS(double(1000)/ApplicationConfig->PreviewFPS,2,ApplicationConfig->PreviewSamplingRate,AV_SAMPLE_FMT_S16);
@@ -179,9 +179,7 @@ void DlgEditMusic::DoInitDialog() {
 
     audio_outputStream->setBufferSize(MixedMusic.NbrPacketForFPS*MixedMusic.SoundPacketSize*BUFFERING_NBR_AUDIO_FRAME);
     audio_outputDevice=audio_outputStream->start();
-    #if QT_VERSION >= 0x050000
     audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-    #endif
     audio_outputStream->suspend();
 }
 
@@ -338,12 +336,11 @@ void DlgEditMusic::SetPlayerToPlay() {
         case QAudio::SuspendedState: audio_outputStream->resume();
                                      break;
         case QAudio::StoppedState:   audio_outputDevice=audio_outputStream->start();
-                                     #if QT_VERSION >= 0x050000
                                      audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-                                     #endif
                                      break;
         case QAudio::ActiveState:    qDebug()<<"ActiveState";                           break;
         case QAudio::IdleState:      qDebug()<<"IdleState";                             break;
+        case QAudio::InterruptedState:  qDebug()<<"InterruptedState";                   break;
     }
     Timer.start(int(double(1000)/ApplicationConfig->PreviewFPS)/2);   // Start Timer
     PlayerMutex.unlock();
@@ -497,12 +494,7 @@ void DlgEditMusic::s_TimerEvent() {
 
     TimerTick=!TimerTick;
 
-    #ifdef Q_OS_WIN
-    // Trylock is always true on Windows instead of unix/linux system
-    if (TimerTick) {
-    #else
     if (!PlayerMutex.tryLock()) { if (!TimerTick) return; else {
-    #endif
         /*
         // specific case for windows because never a timer event can happens if a previous timer event was not ended
         // so next trylock is always true
@@ -523,11 +515,7 @@ void DlgEditMusic::s_TimerEvent() {
         }
         */
     }
-    #ifdef Q_OS_WIN
-    PlayerMutex.lock();
-    #else
     return;}
-    #endif
 
     if (ThreadPrepareMusic.isRunning()) ThreadPrepareMusic.waitForFinished();
 

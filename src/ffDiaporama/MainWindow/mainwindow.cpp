@@ -38,7 +38,6 @@
 #include "QCustomHorizSplitter.h"
 #include "cTextFrame.h"
 #include "engine/_Variables.h"
-#include "engine/cLocation.h"
 
 #include "HelpPopup/HelpPopup.h"
 #include "DlgInfoFile/DlgInfoFile.h"
@@ -58,7 +57,6 @@
 #include "DlgFileExplorer/DlgFileExplorer.h"
 #include "DlgAutoTitleSlide/DlgAutoTitleSlide.h"
 #include "DlgExportProject/DlgExportProject.h"
-#include "DlgGMapsLocation/DlgGMapsGeneration.h"
 #include "DlgImage/DlgImageCorrection.h"
 
 #include <cmath>
@@ -104,7 +102,6 @@ void MainWindow::InitWindow() {
         ApplicationConfig->Database->Tables.append(ApplicationConfig->FoldersTable    =new cFolderTable(ApplicationConfig->Database));
         ApplicationConfig->Database->Tables.append(ApplicationConfig->FilesTable      =new cFilesTable(ApplicationConfig->Database));
         ApplicationConfig->Database->Tables.append(ApplicationConfig->SlideThumbsTable=new cSlideThumbsTable(ApplicationConfig->Database));
-        ApplicationConfig->Database->Tables.append(ApplicationConfig->LocationTable   =new cLocationTable(ApplicationConfig->Database));
         ApplicationConfig->ImagesCache.FilesTable =ApplicationConfig->FilesTable;
         ApplicationConfig->ImagesCache.ThumbsTable=ApplicationConfig->SlideThumbsTable;
         //==== End of tables definition
@@ -185,8 +182,8 @@ void MainWindow::InitWindow() {
     ApplicationConfig->PreloadSystemIcons();
 
     // Register all formats and codecs for libavformat/libavcodec/etc ...
-    screen.showMessage(QApplication::translate("MainWindow","Starting libav..."),Qt::AlignHCenter|Qt::AlignBottom);
-    if (!ApplicationConfig->DeviceModelList.InitLibav()) exit(1);
+    screen.showMessage(QApplication::translate("MainWindow","Starting ffmpeg..."),Qt::AlignHCenter|Qt::AlignBottom);
+    if (!ApplicationConfig->DeviceModelList.InitFFMPEG()) exit(1);
 
     // Register background library
     screen.showMessage(QApplication::translate("MainWindow","Loading background library..."),Qt::AlignHCenter|Qt::AlignBottom);
@@ -265,7 +262,6 @@ void MainWindow::InitWindow() {
     ui->actionRandomize_transition->setIconVisibleInMenu(true);
     ui->actionAddEmptySlide->setIconVisibleInMenu(true);
     ui->actionAddAutoTitleSlide->setIconVisibleInMenu(true);
-    ui->actionAddGMap->setIconVisibleInMenu(true);
     ui->actionSaveProjectAs->setIconVisibleInMenu(true);
     ui->actionExportProject->setIconVisibleInMenu(true);
     ui->actionRemovePlaylist->setIconVisibleInMenu(true);
@@ -330,7 +326,6 @@ void MainWindow::InitWindow() {
     connect(ui->actionAddTitle,SIGNAL(triggered()),this,SLOT(s_Action_AddTitle()));
     connect(ui->actionAddEmptySlide,SIGNAL(triggered()),this,SLOT(s_Action_AddEmptyTitle()));
     connect(ui->actionAddAutoTitleSlide,SIGNAL(triggered()),this,SLOT(s_Action_AddAutoTitleSlide()));
-    connect(ui->actionAddGMap,SIGNAL(triggered()),this,SLOT(s_Action_AddGMap()));
 
     connect(ui->ActionAddProject_BT,SIGNAL(released()),this,SLOT(s_Action_AddProject()));
     connect(ui->ActionAddProject_BT_2,SIGNAL(released()),this,SLOT(s_Action_AddProject()));
@@ -477,10 +472,7 @@ MainWindow::~MainWindow() {
     delete Diaporama;
     delete ApplicationConfig;
 
-    // Close some libav additionnals
-    #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-    avfilter_uninit();
-    #endif
+    // Close some ffmpeg additionnals
     avformat_network_deinit();
 
     // Close Mono Instance Server
@@ -709,13 +701,6 @@ void MainWindow::showEvent(QShowEvent *) {
     if (!IsFirstInitDone) {
         IsFirstInitDone=true;  // do this only one time
 
-        // Check BUILDVERSION to propose to the user to upgrade the application if a new one is available on internet
-        // Start a network process to give last ffdiaporama version from internet web site
-        QNetworkAccessManager *mNetworkManager=ApplicationConfig->GetNetworkAccessManager(this);
-        connect(mNetworkManager,SIGNAL(finished(QNetworkReply*)),this,SLOT(DoCheckBUILDVERSION(QNetworkReply*)));
-        QUrl            url(BUILDVERSION_WEBURL);
-        mNetworkManager->get(QNetworkRequest(url));
-
         // Set player size and pos
         SetTimelineHeight();
         ui->timeline->SetTimelineHeight(ApplicationConfig->PartitionMode);
@@ -734,38 +719,6 @@ void MainWindow::DoMaximized() {
 
 void MainWindow::s_Action_Version() {
     CustomMessageBox(this,QMessageBox::Information,APPLICATION_NAME,ui->VersionBT->toolTip());
-}
-
-void MainWindow::DoCheckBUILDVERSION(QNetworkReply* reply) {
-    QString InternetBUILDVERSION;
-    if (reply->error()==QNetworkReply::NoError) {
-        int httpstatuscode=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toUInt();
-        if ((httpstatuscode>=200)&&(httpstatuscode<300)&&(reply->isReadable())) {
-            InternetBUILDVERSION=QString::fromUtf8(reply->readAll().data());
-            if (InternetBUILDVERSION.endsWith("\n"))   InternetBUILDVERSION=InternetBUILDVERSION.left(InternetBUILDVERSION.length()-QString("\n").length());
-            while (InternetBUILDVERSION.endsWith(" ")) InternetBUILDVERSION=InternetBUILDVERSION.left(InternetBUILDVERSION.length()-1);
-            if (InternetBUILDVERSION.lastIndexOf(" ")) InternetBUILDVERSION=InternetBUILDVERSION.mid(InternetBUILDVERSION.lastIndexOf(" ")+1);
-            int CurrentVersion =CurrentAppVersion.toInt();
-            int InternetVersion=InternetBUILDVERSION.toInt();
-            if (InternetVersion>CurrentVersion) {
-                InternetBUILDVERSION=QApplication::translate("MainWindow","A new release is available from WEB site. Please update from http://ffdiaporama.tuxfamily.org !");
-                ui->VersionBT->setIcon(QIcon(":/img/Red.png"));
-                ui->VersionBT->setToolTip(InternetBUILDVERSION);
-                if ((ApplicationConfig->OpenWEBNewVersion)&&
-                    (CustomMessageBox(this,QMessageBox::Question,APPLICATION_NAME,
-                                      QApplication::translate("MainWindow","A new version is available from WEB site.\nDo you want to download it now?"),
-                                      QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)==QMessageBox::Yes)) {
-                    QDesktopServices::openUrl(QUrl(QString(DOWNLOADPAGE).arg(ApplicationConfig->GetValideWEBLanguage(ApplicationConfig->CurrentLanguage))));
-                }
-            } else {
-                InternetBUILDVERSION="";
-                ui->VersionBT->setIcon(QIcon(":/img/Green.png"));
-                ui->VersionBT->setToolTip(QApplication::translate("MainWindow","Your version of %1 is up to day").arg(APPLICATION_NAME));
-            }
-        } else InternetBUILDVERSION="";
-    } else InternetBUILDVERSION="";
-    ToStatusBar(InternetBUILDVERSION);
-    reply->deleteLater();
 }
 
 //====================================================================================================================
@@ -890,7 +843,7 @@ void MainWindow::s_Action_NewFunctions() {
 
 void MainWindow::s_Action_Exit() {
     if (ForcePause(SLOT(s_Action_Exit()))) return;
-    ui->Browser->EnsureThreadIsStopped();
+    //ui->Browser->EnsureThreadIsStopped();
     close();
 }
 
@@ -1167,7 +1120,7 @@ void MainWindow::DoTimelineSelectionChanged() {
                 (ApplicationConfig->WindowDisplayMode==DISPLAYWINDOWMODE_PLAYER?ui->preview:ui->preview2)->SetStartEndPos(0,0,-1,0,-1,0);
             }
         }
-        Diaporama->CloseUnusedLibAv(Diaporama->CurrentCol);
+        Diaporama->CloseUnusedFFMPEG(Diaporama->CurrentCol);
         RefreshControls();
         ui->timeline->repaint();
         if (OldCurrentCol!=Diaporama->CurrentCol) UpdateChapterInfo();
@@ -1591,7 +1544,7 @@ void MainWindow::DoOpenFile() {
                 while (ApplicationConfig->RecentFile.count()>10) ApplicationConfig->RecentFile.takeFirst();
 
                 // Load project properties
-                Diaporama->ProjectInfo->LoadFromXML(&CurrentLoadingProjectDocument,"",QFileInfo(Diaporama->ProjectFileName).absolutePath(),&AliasList,NULL,&ResKeyList,false,false);
+                Diaporama->ProjectInfo->LoadFromXML(&CurrentLoadingProjectDocument);
                 Diaporama->ProjectThumbnail->LoadFromXML(CurrentLoadingProjectDocument,"ProjectThumbnail",QFileInfo(Diaporama->ProjectFileName).absolutePath(),&AliasList,&ResKeyList,false);
 
                 // Load project geometry and adjust timeline and preview geometry
@@ -1667,8 +1620,6 @@ void MainWindow::DoOpenFileObject() {
 
         QApplication::restoreOverrideCursor();
         ToStatusBar("");
-        // Update gmaps object (if needed)
-        Diaporama->UpdateGMapsObject(true);
         // finaly set modify flag
         SetModifyFlag(Diaporama->IsModify);
     }
@@ -1757,7 +1708,6 @@ void MainWindow::s_Action_AddTitle() {
     QMenu *ContextMenu=new QMenu(this);
     ContextMenu->addAction(ui->actionAddEmptySlide);
     ContextMenu->addAction(ui->actionAddAutoTitleSlide);
-    ContextMenu->addAction(ui->actionAddGMap);
     ContextMenu->exec(QCursor::pos());
     delete ContextMenu;
 }
@@ -1772,13 +1722,10 @@ void MainWindow::s_Action_AddEmptyTitle() {
     DiaporamaObject->List[0]->StaticDuration=ApplicationConfig->NoShotDuration;
 
     if (Diaporama->ApplicationConfig->RandomTransition) {
-        qsrand(QTime(0,0,0,0).msecsTo(QTime::currentTime()));
-        int Random=qrand();
-        Random=int(double(IconList.List.count())*(double(Random)/double(RAND_MAX)));
-        if (Random<IconList.List.count()) {
-            Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
-            Diaporama->List[CurIndex]->TransitionSubType=IconList.List[Random].TransitionSubType;
-        }
+        double Random=QRandomGenerator::global()->generateDouble();
+        Random=int(Random*IconList.List.count());
+        Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
+        Diaporama->List[CurIndex]->TransitionSubType=IconList.List[Random].TransitionSubType;
     } else {
         Diaporama->List[CurIndex]->TransitionFamilly=Diaporama->ApplicationConfig->DefaultTransitionFamilly;
         Diaporama->List[CurIndex]->TransitionSubType=Diaporama->ApplicationConfig->DefaultTransitionSubType;
@@ -1801,13 +1748,10 @@ void MainWindow::s_Action_AddAutoTitleSlide() {
     DiaporamaObject->Parent                 =Diaporama;
 
     if (Diaporama->ApplicationConfig->RandomTransition) {
-        qsrand(QTime(0,0,0,0).msecsTo(QTime::currentTime()));
-        int Random=qrand();
-        Random=int(double(IconList.List.count())*(double(Random)/double(RAND_MAX)));
-        if (Random<IconList.List.count()) {
-            Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
-            Diaporama->List[CurIndex]->TransitionSubType=IconList.List[Random].TransitionSubType;
-        }
+        double Random=QRandomGenerator::global()->generateDouble();
+        int index=Random*IconList.List.count();
+        Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[index].TransitionFamilly;
+        Diaporama->List[CurIndex]->TransitionSubType=IconList.List[index].TransitionSubType;
     } else {
         Diaporama->List[CurIndex]->TransitionFamilly=Diaporama->ApplicationConfig->DefaultTransitionFamilly;
         Diaporama->List[CurIndex]->TransitionSubType=Diaporama->ApplicationConfig->DefaultTransitionSubType;
@@ -1839,114 +1783,6 @@ void MainWindow::s_Action_AddAutoTitleSlide() {
             if ((Diaporama->List[i]->ThumbnailKey!=1)&&(Variable.IsObjectHaveVariables(Diaporama->List[i])))
                 ApplicationConfig->SlideThumbsTable->ClearThumbs(Diaporama->List[i]->ThumbnailKey);
 
-
-    } else { // Cancel
-        delete Diaporama->List.takeAt(CurIndex);
-        AdjustRuller(SavedCurIndex);
-        CurIndex=SavedCurIndex;
-    }
-
-    QApplication::setOverrideCursor(QCursor(Qt::WaitCursor));
-    ui->timeline->ResetDisplay(CurIndex);    // FLAGSTOPITEMSELECTION is set to false by ResetDisplay
-    (ApplicationConfig->WindowDisplayMode==DISPLAYWINDOWMODE_PLAYER?ui->preview:ui->preview2)->SeekPlayer(Diaporama->GetObjectStartPosition(Diaporama->CurrentCol)+Diaporama->GetTransitionDuration(Diaporama->CurrentCol));
-    ui->timeline->setUpdatesEnabled(true);
-    QApplication::restoreOverrideCursor();
-}
-
-void MainWindow::s_Action_AddGMap() {
-    QApplication::setOverrideCursor(QCursor(Qt::WaitCursor));
-    SavedCurIndex=Diaporama->CurrentCol;
-    CurIndex     =Diaporama->List.count()==0?0:(ApplicationConfig->AppendObject?Diaporama->List.count()-1:Diaporama->CurrentCol)+1;
-
-    Diaporama->List.insert(CurIndex,new cDiaporamaObject(Diaporama));
-    cDiaporamaObject *DiaporamaObject       =Diaporama->List[CurIndex];
-    DiaporamaObject->List[0]->Parent        =DiaporamaObject;
-    DiaporamaObject->List[0]->StaticDuration=ApplicationConfig->NoShotDuration;
-    DiaporamaObject->Parent                 =Diaporama;
-
-    // Create an GMapsMap wrapper
-    cGMapsMap   *MediaObject=new cGMapsMap(ApplicationConfig);
-    MediaObject->CreatDateTime=QDateTime().currentDateTime();
-    MediaObject->CreateDefaultImage(Diaporama);   // create default image
-    MediaObject->GetInformationFromFile("",NULL,NULL,-1);
-
-    // Add this block
-    Diaporama->List[CurIndex]->ObjectComposition.List.insert(0,new cCompositionObject(COMPOSITIONTYPE_OBJECT,Diaporama->List[CurIndex]->NextIndexKey,ApplicationConfig,&Diaporama->List[CurIndex]->ObjectComposition));
-    cCompositionObject  *CompositionObject=Diaporama->List[CurIndex]->ObjectComposition.List[0];
-    cCompositionObject  *ShotCompoObject  =NULL;
-    cBrushDefinition    *CurrentBrush     =CompositionObject->BackgroundBrush;
-
-    // Set CompositionObject to full screen
-    CompositionObject->x=0;
-    CompositionObject->y=0;
-    CompositionObject->w=1;
-    CompositionObject->h=1;
-
-    // Set other values
-    CompositionObject->Text     ="";
-    CompositionObject->PenSize  =0;
-    CurrentBrush->BrushType     =BRUSHTYPE_IMAGEDISK;
-
-    // Create an cImageClipboard wrapper
-    CurrentBrush->MediaObject=MediaObject;
-
-    // Apply Styles
-    CompositionObject->ApplyTextStyle(ApplicationConfig->StyleTextCollection.GetStyleDef(ApplicationConfig->StyleTextCollection.DecodeString(ApplicationConfig->DefaultBlockSL_IMG_TextST)));
-    CompositionObject->ApplyBlockShapeStyle(ApplicationConfig->StyleBlockShapeCollection.GetStyleDef(ApplicationConfig->StyleBlockShapeCollection.DecodeString(ApplicationConfig->DefaultBlockSL_IMG_ShapeST)));
-    qreal ProjectGeometry=qreal(Diaporama->ImageGeometry==GEOMETRY_4_3?1440:Diaporama->ImageGeometry==GEOMETRY_16_9?1080:Diaporama->ImageGeometry==GEOMETRY_40_17?816:1920)/qreal(1920);
-    CurrentBrush->ApplyAutoFraming(ApplicationConfig->DefaultBlockSL[CurrentBrush->GetImageType()].AutoFraming,ProjectGeometry);
-    CompositionObject->ApplyAutoCompoSize(ApplicationConfig->DefaultBlockSL[CurrentBrush->GetImageType()].AutoCompo,Diaporama->ImageGeometry);
-
-    // Inc NextIndexKey
-    Diaporama->List[CurIndex]->NextIndexKey++;
-
-    // Now create and append a shot composition block to all shot
-    for (int i=0;i<Diaporama->List[CurIndex]->List.count();i++) {
-        Diaporama->List[CurIndex]->List[i]->ShotComposition.List.append(new cCompositionObject(COMPOSITIONTYPE_SHOT,CompositionObject->IndexKey,ApplicationConfig,&Diaporama->List[CurIndex]->List[i]->ShotComposition));
-        Diaporama->List[CurIndex]->List[i]->ShotComposition.List[Diaporama->List[CurIndex]->List[i]->ShotComposition.List.count()-1]->CopyFromCompositionObject(CompositionObject);
-    }
-
-    // Now setup transition
-    if (Diaporama->ApplicationConfig->RandomTransition) {
-        qsrand(QTime(0,0,0,0).msecsTo(QTime::currentTime()));
-        int Random=qrand();
-        Random=int(double(IconList.List.count())*(double(Random)/double(RAND_MAX)));
-        if (Random<IconList.List.count()) {
-            Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
-            Diaporama->List[CurIndex]->TransitionSubType=IconList.List[Random].TransitionSubType;
-        }
-    } else {
-        Diaporama->List[CurIndex]->TransitionFamilly=Diaporama->ApplicationConfig->DefaultTransitionFamilly;
-        Diaporama->List[CurIndex]->TransitionSubType=Diaporama->ApplicationConfig->DefaultTransitionSubType;
-    }
-    Diaporama->List[CurIndex]->TransitionDuration=Diaporama->ApplicationConfig->DefaultTransitionDuration;
-
-    // Compute Optimisation Flags
-    for (int aa=0;aa<Diaporama->List[CurIndex]->List.count();aa++)
-        for (int bb=0;bb<Diaporama->List[CurIndex]->List[aa]->ShotComposition.List.count();bb++)
-            Diaporama->List[CurIndex]->List[aa]->ShotComposition.List[bb]->ComputeOptimisationFlags(aa>0?Diaporama->List[CurIndex]->List[aa-1]->ShotComposition.List[bb]:NULL);
-
-    AdjustRuller(CurIndex);
-    (ApplicationConfig->WindowDisplayMode==DISPLAYWINDOWMODE_PLAYER?ui->preview:ui->preview2)->SeekPlayer(Diaporama->GetObjectStartPosition(Diaporama->CurrentCol)+Diaporama->GetTransitionDuration(Diaporama->CurrentCol));
-
-    QApplication::restoreOverrideCursor();
-
-    ShotCompoObject=Diaporama->List[CurIndex]->List[0]->ShotComposition.List[0];
-    DlgImageCorrection Dlg(ShotCompoObject,&ShotCompoObject->BackgroundForm,ShotCompoObject->BackgroundBrush,0,Diaporama->ImageGeometry,Diaporama->ImageAnimSpeedWave,ApplicationConfig,this);
-    Dlg.InitDialog();
-    if (Dlg.exec()==0) {
-        // Lulo object must be removed
-        ApplicationConfig->ImagesCache.RemoveImageObject(CompositionObject->BackgroundBrush->MediaObject->RessourceKey,CompositionObject->BackgroundBrush->MediaObject->FileKey);
-
-        // Apply to GlobalComposition objects
-        CompositionObject->CopyFromCompositionObject(ShotCompoObject);
-        CompositionObject->BackgroundBrush->TypeComposition=CompositionObject->TypeComposition; // because CopyFromCompositionObject force it to COMPOSITIONTYPE_SHOT
-
-        // Reset thumbnails of this slide
-        ApplicationConfig->SlideThumbsTable->ClearThumbs(Diaporama->List[CurIndex]->ThumbnailKey);
-
-        // Set title flag
-        SetModifyFlag(true);
 
     } else { // Cancel
         delete Diaporama->List.takeAt(CurIndex);
@@ -2022,9 +1858,9 @@ void MainWindow::s_Event_TimelineAddDragAndDropFile() {
     CancelAction =false;
 
     // Sort files in the fileList
-    if          (ui->Browser->GetSortOrder()==SORTORDER_BYNUMBER)   qSort(FileList.begin(),FileList.end(),ByNumber);
-        else if (ui->Browser->GetSortOrder()==SORTORDER_BYNAME)     qSort(FileList.begin(),FileList.end(),ByName);
-        else if (ui->Browser->GetSortOrder()==SORTORDER_BYDATE)     qSort(FileList.begin(),FileList.end(),ByDate);
+    if          (ui->Browser->GetSortOrder()==SORTORDER_BYNUMBER)   std::sort(FileList.begin(),FileList.end(),ByNumber);
+        else if (ui->Browser->GetSortOrder()==SORTORDER_BYNAME)     std::sort(FileList.begin(),FileList.end(),ByName);
+        else if (ui->Browser->GetSortOrder()==SORTORDER_BYDATE)     std::sort(FileList.begin(),FileList.end(),ByDate);
 
     // Parse all files to find music files (and put them in MusicFileList)
     MusicFileList.clear();
@@ -2357,7 +2193,7 @@ void MainWindow::DoAddFile() {
                     DiaporamaObject->SlideName   =GetInformationValue(ChapterStr+"title",&TempExtProperties);
                 } else {
                     Video->EndPos=Video->GetRealDuration();
-                    if (Video->LibavStartTime>0) Video->StartPos=QTime(0,0,0,0).addMSecs(int64_t((double(Video->LibavStartTime)/AV_TIME_BASE)*1000));
+                    if (Video->FFMPEGstartTime>0) Video->StartPos=QTime(0,0,0,0).addMSecs(int64_t((double(Video->FFMPEGstartTime)/AV_TIME_BASE)*1000));
                 }
                 QString FileExtension=QFileInfo(Video->FileName()).completeSuffix().toLower();
                 CurrentBrush->Deinterlace=(ApplicationConfig->Deinterlace)&&(Video)&&((FileExtension=="mts")||(FileExtension=="m2ts")||(FileExtension=="mod"));
@@ -2402,13 +2238,10 @@ void MainWindow::DoAddFile() {
             //*************************************************************
             if (ChapterNum<1) {
                 if (Diaporama->ApplicationConfig->RandomTransition) {
-                    qsrand(QTime(0,0,0,0).msecsTo(QTime::currentTime()));
-                    int Random=qrand();
-                    Random=int(double(IconList.List.count())*(double(Random)/double(RAND_MAX)));
-                    if (Random<IconList.List.count()) {
-                        Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
-                        Diaporama->List[CurIndex]->TransitionSubType=IconList.List[Random].TransitionSubType;
-                    }
+                    double Random=QRandomGenerator::global()->generateDouble();
+                    int index=Random*IconList.List.count();
+                    Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[index].TransitionFamilly;
+                    Diaporama->List[CurIndex]->TransitionSubType=IconList.List[index].TransitionSubType;
                 } else {
                     Diaporama->List[CurIndex]->TransitionFamilly=Diaporama->ApplicationConfig->DefaultTransitionFamilly;
                     Diaporama->List[CurIndex]->TransitionSubType=Diaporama->ApplicationConfig->DefaultTransitionSubType;
@@ -2505,10 +2338,8 @@ void MainWindow::s_Action_DoUseAsPlayList() {
 
 //====================================================================================================================
 void MainWindow::s_VideoPlayer_VolumeChanged() {
-    #if QT_VERSION >= 0x050000
     if (ApplicationConfig->WindowDisplayMode==DISPLAYWINDOWMODE_PLAYER) ui->preview2->audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
         else ui->preview->audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-    #endif
 }
 //====================================================================================================================
 
@@ -2524,7 +2355,7 @@ void MainWindow::s_VideoPlayer_SaveImageEvent() {
         for (int j=0;j<Size.count()-1;j++) {
             int a=Size[j].left(Size[j].indexOf("x")).toInt();
             int b=Size[j+1].left(Size[j+1].indexOf("x")).toInt();
-            if (a>b) Size.swap(j,j+1);
+            if (a>b) Size.swapItemsAt(j,j+1);
         }
     }
 
@@ -2947,13 +2778,10 @@ void MainWindow::s_Action_PasteFromClipboard() {
 
             // Setup transition
             if (Diaporama->ApplicationConfig->RandomTransition) {
-                qsrand(QTime(0,0,0,0).msecsTo(QTime::currentTime()));
-                int Random=qrand();
-                Random=int(double(IconList.List.count())*(double(Random)/double(RAND_MAX)));
-                if (Random<IconList.List.count()) {
-                    Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
-                    Diaporama->List[CurIndex]->TransitionSubType=IconList.List[Random].TransitionSubType;
-                }
+                double Random=QRandomGenerator::global()->generateDouble();
+                int index=Random*IconList.List.count();
+                Diaporama->List[CurIndex]->TransitionFamilly=IconList.List[index].TransitionFamilly;
+                Diaporama->List[CurIndex]->TransitionSubType=IconList.List[index].TransitionSubType;
             } else {
                 Diaporama->List[CurIndex]->TransitionFamilly=Diaporama->ApplicationConfig->DefaultTransitionFamilly;
                 Diaporama->List[CurIndex]->TransitionSubType=Diaporama->ApplicationConfig->DefaultTransitionSubType;
@@ -3304,17 +3132,11 @@ void MainWindow::s_ActionMultiple_Randomize() {
     if ((Current<0)||(Current>=Diaporama->List.count())) return;
     ui->timeline->CurrentSelectionList(&SlideList);
 
-    qsrand(QTime(0,0,0,0).msecsTo(QTime::currentTime()));
+    double Random=QRandomGenerator::global()->generateDouble();
     for (int i=0;i<SlideList.count();i++) {
-        int Random=qrand();
-        Random=int(double(IconList.List.count())*(double(Random)/double(RAND_MAX)));
-        if (Random<IconList.List.count()) {
-            Diaporama->List[SlideList[i]]->TransitionFamilly=IconList.List[Random].TransitionFamilly;
-            Diaporama->List[SlideList[i]]->TransitionSubType=IconList.List[Random].TransitionSubType;
-        } else {
-            Diaporama->List[SlideList[i]]->TransitionFamilly=Diaporama->ApplicationConfig->DefaultTransitionFamilly;
-            Diaporama->List[SlideList[i]]->TransitionSubType=Diaporama->ApplicationConfig->DefaultTransitionSubType;
-        }
+        int index=Random*IconList.List.count();
+        Diaporama->List[SlideList[i]]->TransitionFamilly=IconList.List[index].TransitionFamilly;
+        Diaporama->List[SlideList[i]]->TransitionSubType=IconList.List[index].TransitionSubType;
         if (Diaporama->List[SlideList[i]]->TransitionDuration==0) Diaporama->List[SlideList[i]]->TransitionDuration=Diaporama->ApplicationConfig->DefaultTransitionDuration;
     }
 

@@ -20,7 +20,6 @@
 
 // Specific inclusions
 #include "_Variables.h"
-#include "cLocation.h"
 
 cHTMLConversion HTMLConverter;
 cVariable       Variable;
@@ -176,8 +175,6 @@ QString cVariable::ResolveTextVariable(cDiaporamaObject *Object,QString SourceTe
         else if (Variables[i].VarName=="PAU") VarName=Object->Parent->ProjectInfo->Author;
         else if (Variables[i].VarName=="PAI") VarName=QApplication::translate("Variables","%1 presents").arg(Object->Parent->ProjectInfo->Author);
         else if (Variables[i].VarName=="PAP") VarName=QApplication::translate("Variables","A %1 production").arg(Object->Parent->ProjectInfo->Author);
-        else if (Variables[i].VarName=="PLN") VarName=Object->Parent->ProjectInfo->Location?((cLocation *)Object->Parent->ProjectInfo->Location)->Name:QApplication::translate("Variables","Project's location not set (Name)");
-        else if (Variables[i].VarName=="PLA") VarName=Object->Parent->ProjectInfo->Location?((cLocation *)Object->Parent->ProjectInfo->Location)->FriendlyAddress:QApplication::translate("Variables","Project's location not set (Address)");
         else if (Variables[i].VarName=="PCT") VarName=Object->Parent->ProjectInfo->Comment;
         else if (Variables[i].VarName=="PDD") { VarName=Object->Parent->ProjectInfo->GetRealDuration().toString("HH:mm:ss.zzz"); VarName=VarName.left(VarName.lastIndexOf(".")); }
         else if (Variables[i].VarName=="PSC") VarName=QString("%1").arg(Object->Parent->List.count());
@@ -188,8 +185,8 @@ QString cVariable::ResolveTextVariable(cDiaporamaObject *Object,QString SourceTe
         else if (Variables[i].VarName=="PYR") VarName=QString("%1").arg(Object->Parent->ProjectInfo->EventDate.year());
         else if (Variables[i].VarName=="PMD") VarName=ito2a(Object->Parent->ProjectInfo->EventDate.month());
         else if (Variables[i].VarName=="PDY") VarName=ito2a(Object->Parent->ProjectInfo->EventDate.day());
-        else if (Variables[i].VarName=="PMM") VarName=UpInitials(Object->Parent->ProjectInfo->EventDate.longMonthName(Object->Parent->ProjectInfo->EventDate.month()));
-        else if (Variables[i].VarName=="PDW") VarName=UpInitials(Object->Parent->ProjectInfo->EventDate.longDayName(Object->Parent->ProjectInfo->EventDate.dayOfWeek()));
+        else if (Variables[i].VarName=="PMM") VarName=UpInitials(QLocale().monthName(Object->Parent->ProjectInfo->EventDate.month(), QLocale::LongFormat));
+        else if (Variables[i].VarName=="PDW") VarName=UpInitials(QLocale().dayName(Object->Parent->ProjectInfo->EventDate.dayOfWeek(), QLocale::LongFormat));
 
         // Current slide
         else if (Variables[i].VarName=="CSN") VarName=Object->GetDisplayName();
@@ -201,8 +198,6 @@ QString cVariable::ResolveTextVariable(cDiaporamaObject *Object,QString SourceTe
         else if (Variables[i].VarName=="CCI") VarName=QApplication::translate("Variables","Chapter %1").arg(ChapterNumber);
         else if (Variables[i].VarName=="CCD") VarName=GetInformationValue(ChapterNum+"Duration",&Object->Parent->ProjectInfo->ChaptersProperties);
         else if (Variables[i].VarName=="CCT") VarName=QString("%1").arg(Object->Parent->ProjectInfo->NbrChapters);
-        else if (Variables[i].VarName=="CLN") VarName=GetInformationValue(ChapterNum+"LocationName",&Object->Parent->ProjectInfo->ChaptersProperties);
-        else if (Variables[i].VarName=="CLA") VarName=GetInformationValue(ChapterNum+"LocationAddress",&Object->Parent->ProjectInfo->ChaptersProperties);
 
         // Current chapter date values
         else if (Variables[i].VarName=="CSD") VarName=GetInformationValue(ChapterNum+"Date",&Object->Parent->ProjectInfo->ChaptersProperties);
@@ -210,8 +205,8 @@ QString cVariable::ResolveTextVariable(cDiaporamaObject *Object,QString SourceTe
         else if (Variables[i].VarName=="CYR") VarName=QString("%1").arg((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).year());
         else if (Variables[i].VarName=="CMD") VarName=ito2a((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).month());
         else if (Variables[i].VarName=="CDY") VarName=ito2a((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).day());
-        else if (Variables[i].VarName=="CMM") VarName=UpInitials(QDate().longMonthName((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).month()));
-        else if (Variables[i].VarName=="CDW") VarName=UpInitials(QDate().longDayName((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).dayOfWeek()));
+        else if (Variables[i].VarName=="CMM") VarName=UpInitials(QLocale().monthName((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).month(), QLocale::LongFormat));
+        else if (Variables[i].VarName=="CDW") VarName=UpInitials(QLocale().dayName((CurrentChapter->OverrideProjectEventDate?CurrentChapter->ChapterEventDate:Object->Parent->ProjectInfo->EventDate).dayOfWeek(), QLocale::LongFormat));
 
         // Various values
         else if (Variables[i].VarName=="FFD")  VarName=QString("%1 (%2)").arg(Object->Parent->ProjectInfo->Composer).arg(Object->Parent->ProjectInfo->ffDRevision);
@@ -225,13 +220,13 @@ QString cVariable::ResolveTextVariable(cDiaporamaObject *Object,QString SourceTe
         else if (Variables[i].VarName=="END")  VarName=QApplication::translate("Variables","The end");
 
         // Today date values
-        else if (Variables[i].VarName=="TLD") VarName=UpInitials(QDate::currentDate().toString(Qt::DefaultLocaleLongDate));
+        else if (Variables[i].VarName=="TLD") VarName=UpInitials(QLocale().toString(QDate::currentDate(), QLocale::LongFormat));
         else if (Variables[i].VarName=="TSD") VarName=QDate::currentDate().toString(Object->Parent->ApplicationConfig->ShortDateFormat);
         else if (Variables[i].VarName=="TYR") VarName=QString("%1").arg(QDate::currentDate().year());
         else if (Variables[i].VarName=="TMD") VarName=ito2a(QDate::currentDate().month());
         else if (Variables[i].VarName=="TDY") VarName=ito2a(QDate::currentDate().day());
-        else if (Variables[i].VarName=="TMM") VarName=UpInitials(QDate::currentDate().longMonthName(QDate::currentDate().month()));
-        else if (Variables[i].VarName=="TDW") VarName=UpInitials(QDate::currentDate().longDayName(QDate::currentDate().dayOfWeek()));
+        else if (Variables[i].VarName=="TMM") VarName=UpInitials(QLocale().monthName(QDate::currentDate().month(), QLocale::LongFormat));
+        else if (Variables[i].VarName=="TDW") VarName=UpInitials(QLocale().dayName(QDate::currentDate().dayOfWeek(), QLocale::LongFormat));
 
         else VarName="";
 
