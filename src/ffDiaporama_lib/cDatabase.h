@@ -22,15 +22,9 @@
 #define CDATABASE_H
 
 // Include some additional standard class
-#ifdef Q_OS_WIN
-    #include <QtSql/QSqlDatabase>
-    #include <QtSql/QSqlQuery>
-    #include <QtSql/QSqlError>
-#else
-    #include <QSqlDatabase>
-    #include <QSqlQuery>
-    #include <QSqlError>
-#endif
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QSqlError>
 
 //*****************************************************************************
 // Enum of all table type
@@ -41,7 +35,6 @@ enum eTypeTable {
     TypeTable_FolderTable,
     TypeTable_FileTable,
     TypeTable_SlideThumbsTable,
-    TypeTable_LocationTable
 };
 
 //*****************************************************************************
@@ -175,19 +168,6 @@ public:
     virtual bool            GetThumbs(qlonglong *ThumbnailKey,QImage *Thumbs);
     virtual bool            ClearThumbs(qlonglong ThumbnailKey);
     virtual bool            RemoveThumbs(qlonglong ThumbnailKey);
-};
-
-//**********************************************************************************************
-// cLocationTable : encapsulate locations in the table
-//**********************************************************************************************
-class cLocationTable : public cDatabaseTable {
-public:
-
-    explicit                cLocationTable(cDatabase *Database);
-
-    virtual bool            DoUpgradeTableVersion(qlonglong CurrentVersion);
-    virtual qlonglong       AppendLocation(QString Name,QString Address,QString FAddress,double Latitude,double Longitude,int Zoomlevel,QString Icon,QImage Thumbnail);
-    virtual qlonglong       UpdateLocation(qlonglong Key,QString Name,QString Address,QString FAddress,double Latitude,double Longitude,int Zoomlevel,QString Icon,QImage Thumbnail);
 };
 
 #endif // CDATABASE_H

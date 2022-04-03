@@ -418,7 +418,7 @@ void cLumaList::ScanDisk(QString Path,TRFAMILLY TransitionFamilly) {
         QFileInfoList       Files=Folder.entryInfoList();;
         for (int i=0;i<Files.count();i++) if (Files[i].isFile() && QString(Files[i].suffix()).toLower()=="png") List.append(cLumaObject(TransitionFamilly,List.count(),Files[i].absoluteFilePath()));
         // Sort list by name
-        for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j].Name>List[j+1].Name) List.swap(j,j+1);
+        for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j].Name>List[j+1].Name) List.swapItemsAt(j,j+1);
     }
     // Register icons for this list
     for (int i=0;i<List.count();i++) IconList.List.append(cIconObject(TransitionFamilly,i,&List[i]));
@@ -479,7 +479,7 @@ QImage RotateImage(double TheRotateXAxis,double TheRotateYAxis,double TheRotateZ
     QImage   Img(hyp,hyp,QImage::Format_ARGB32_Premultiplied);
     QPainter Painter;
     Painter.begin(&Img);
-    Painter.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen);
+    Painter.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform);
     Painter.setCompositionMode(QPainter::CompositionMode_Source);
     Painter.fillRect(QRect(0,0,hyp,hyp),Qt::transparent);
     Painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
@@ -762,7 +762,7 @@ void Transition_Push(int TransitionSubType,double PCT,QImage *ImageA,QImage *Ima
     int         PCTH=int(PCT*double(DestImageHeight));
     int         PCTWB=int((1-PCT)*double(DestImageWith));
     int         PCTHB=int((1-PCT)*double(DestImageHeight));
-    double      Rotate,dw,dh,ddw,ddh;
+    double      Rotate,dw,dh,ddw=0,ddh=0;
     QImage      Img,ImgZoomed;
     QPainter    P;
     double      ZOOMFACTOR=0.4;     // à calculer selon la transition width/hyp pour horiz et height/hyp pour vert !
@@ -1137,10 +1137,10 @@ void Transition_Luma(QImage Luma,double PCT,QImage *ImageA,QImage *ImageB,QPaint
     QImage    Img      =ImageB->copy();
 
     // Apply PCTDone to luma mask
-    u_int8_t  limit    =u_int8_t(PCT*double(0xff))+1;
-    u_int32_t *LumaData=(u_int32_t *)Luma.bits();
-    u_int32_t *ImgData =(u_int32_t *)Img.bits();
-    u_int32_t *ImgData2=(u_int32_t *)ImageA->bits();
+    uint8_t  limit    =uint8_t(PCT*double(0xff))+1;
+    uint32_t *LumaData=(uint32_t *)Luma.bits();
+    uint32_t *ImgData =(uint32_t *)Img.bits();
+    uint32_t *ImgData2=(uint32_t *)ImageA->bits();
 
     for (int i=0;i<DestImageWith*DestImageHeight;i++) {
         if (((*LumaData++)& 0xff)>limit) *ImgData=*ImgData2;

@@ -25,16 +25,6 @@
 #ifndef _BASICDEFINES_H
 #define _BASICDEFINES_H
 
-// Remove unwanted warnings when using MSVC
-#ifndef _DEPRECATION_DISABLE                /* One time only */
-    #define _DEPRECATION_DISABLE            /* Disable deprecation true */
-    #if (_MSC_VER >= 1400)                  /* Check version */
-        #pragma warning(disable: 4996)      /* Disable deprecation */
-        #pragma warning(disable: 4005)      /* Disable warning on macro redefinition */
-        #pragma warning(disable: 4100)      /* Disable warning on macro redefinition */
-    #endif                                  /* #if defined(NMEA_WIN) && (_MSC_VER >= 1400) */
-#endif                                      /* #ifndef _DEPRECATION_DISABLE */
-
 //============================================
 // Activate standard stdint macro
 //============================================
@@ -48,28 +38,8 @@
 #include <stdlib.h>
 #include <iostream>
 
-//============================================
-// Specific for MSVC
-//============================================
-
-#ifdef _MSC_VER
-    #define snprintf    _snprintf_s
-    #define AVRCAST                     // MSC doesn't allow CAST in struct constant definition
-#else
-    #define AVRCAST (AVRational)        // mingw need CAST in struct constant definition
-    #include <unistd.h>
-#endif
-
-//============================================
-// Specific for SOLARIS
-//============================================
-
-#ifdef Q_OS_SOLARIS
-    #define u_int64_t uint64_t
-    #define u_int32_t uint32_t
-    #define u_int16_t uint16_t
-    #define u_int8_t uint8_t
-#endif
+#define AVRCAST (AVRational)        // mingw need CAST in struct constant definition
+#include <unistd.h>
 
 //============================================
 // Minimum QT inclusions needed by all files
@@ -81,24 +51,7 @@
 #include <QString>
 #include <QStringList>
 #include <QDomElement>
-
-#if QT_VERSION >= 0x050000
-    #include <QtConcurrent>
-#endif
-
-//====================================================================
-// For windows, windows.h and winbase.h must be included after QtCore
-//====================================================================
-#ifdef Q_OS_WIN
-    #include <windows.h>
-    #include <winbase.h>
-
-    // These type are undefined under Windows
-    typedef unsigned char       u_int8_t;
-    typedef unsigned short      u_int16_t;
-    typedef unsigned            u_int32_t;
-    typedef unsigned long long  u_int64_t;
-#endif
+#include <QtConcurrent>
 
 //====================================================================
 // Math
@@ -130,12 +83,7 @@ extern QObject      *EventReceiver;                     // Windows wich receive 
 
 void    PostEvent(int EventType,QString EventParam="");
 void    ToLog(int MessageType,QString Message,QString Source="internal",bool AddBreak=true);
-
-#if QT_VERSION >= 0x050000
 void    QTMessageOutput(QtMsgType type,const QMessageLogContext &,const QString &msg);
-#else
-void    QTMessageOutput(QtMsgType type,const char *msg);
-#endif
 
 //====================================================================
 // Standard project geometry definition

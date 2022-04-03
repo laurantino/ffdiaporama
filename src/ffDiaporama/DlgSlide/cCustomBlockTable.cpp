@@ -166,11 +166,7 @@ void cBlockTableItemDelegate::paint(QPainter *Painter,const QStyleOptionViewItem
         // First line
         font=QFont("Sans serif",9,QFont::Bold,QFont::StyleNormal);          // First line use bold
         Painter->setFont(font);
-        #ifdef Q_OS_WIN
-        font.setPointSizeF(double(110+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()));                    // Scale font
-        #else
         font.setPointSizeF((double(120+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust); // Scale font
-        #endif
         Painter->setFont(font);
 
         OptionText=QTextOption(Qt::AlignLeft|Qt::AlignVCenter);                     // Setup alignement
@@ -181,11 +177,7 @@ void cBlockTableItemDelegate::paint(QPainter *Painter,const QStyleOptionViewItem
         font=QFont("Sans serif",8,QFont::Normal,QFont::StyleNormal);
         font.setUnderline(false);
         Painter->setFont(font);
-        #ifdef Q_OS_WIN
-        font.setPointSizeF(double(100+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()));                  // Scale font
-        #else
         font.setPointSizeF((double(100+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust);// Scale font
-        #endif
         Painter->setFont(font);
         Painter->drawText(QRectF(option.rect.x()+IconWidth+2+2,option.rect.y()+1+(RowHeight/3),option.rect.width()-IconWidth-3-2,14),SummaryText[1],OptionText);
 
@@ -196,11 +188,7 @@ void cBlockTableItemDelegate::paint(QPainter *Painter,const QStyleOptionViewItem
         font=QFont("Sans serif",8,QFont::Normal,QFont::StyleNormal);
         font.setUnderline(false);
         Painter->setFont(font);
-        #ifdef Q_OS_WIN
-        font.setPointSizeF(double(100+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()));                  // Scale font
-        #else
         font.setPointSizeF((double(100+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust);// Scale font
-        #endif
         Painter->setFont(font);
         OptionText=QTextOption(Qt::AlignLeft|Qt::AlignVCenter);                     // Setup alignement
         OptionText.setWrapMode(QTextOption::NoWrap);                                // Setup word wrap text option
@@ -266,17 +254,10 @@ cCustomBlockTable::cCustomBlockTable(QWidget *parent):QTableWidget(parent) {
     verticalHeader()->setSortIndicatorShown(false);
     verticalHeader()->hide();
 
-#if QT_VERSION >= 0x050000
     horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);          //Fixed because ResizeToContents will be done after table filling
     verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);            // Fixed because ResizeToContents will be done after table filling
     horizontalHeader()->setSectionsClickable(false);
     horizontalHeader()->setSectionsMovable(false);
-#else
-    horizontalHeader()->setResizeMode(QHeaderView::Fixed);          //Fixed because ResizeToContents will be done after table filling
-    verticalHeader()->setResizeMode(QHeaderView::Fixed);            // Fixed because ResizeToContents will be done after table filling
-    horizontalHeader()->setClickable(false);
-    horizontalHeader()->setMovable(false);
-#endif
 
     setSelectionBehavior(QAbstractItemView::SelectRows);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

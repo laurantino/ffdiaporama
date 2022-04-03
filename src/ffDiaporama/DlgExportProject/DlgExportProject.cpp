@@ -55,17 +55,10 @@ void DlgExportProject::DoInitDialog() {
     ui->Table->setColumnCount(3);
     ui->Table->setHorizontalHeaderLabels(QApplication::translate("DlgExportProject","% done;Destination file;Source file").split(";"));
     for (int Col=0;Col<ui->Table->columnCount();Col++) ui->Table->horizontalHeaderItem(Col)->setTextAlignment(Col==0?Qt::AlignHCenter:Qt::AlignLeft);
-    #if QT_VERSION >= 0x050000
     ui->Table->horizontalHeader()->setSectionsClickable(false);
     ui->Table->horizontalHeader()->setSectionsMovable(false);
     ui->Table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     ui->Table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    #else
-    ui->Table->horizontalHeader()->setClickable(false);
-    ui->Table->horizontalHeader()->setMovable(false);
-    ui->Table->horizontalHeader()->setResizeMode(QHeaderView::ResizeToContents);
-    ui->Table->verticalHeader()->setResizeMode(QHeaderView::Fixed);
-    #endif
 
     ui->DestinationPathED->setText(DestinationPath);
     ui->ProjectSubfolderED->setText(QFileInfo(ffdProject->ProjectFileName).baseName());

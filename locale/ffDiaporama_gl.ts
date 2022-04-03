@@ -1580,8 +1580,8 @@ Por exemplo, se o proxecto é «As miñas vacacións do 1 ao 15», o capítulo p
         <translation>Ficheiro de tradución cargado: %1</translation>
     </message>
     <message>
-        <source>LIBAV general version:</source>
-        <translation>Versión xeral de LIBAV:</translation>
+        <source>FFMPEG version:</source>
+        <translation>Versión xeral de FFMPEG:</translation>
     </message>
     <message>
         <source>Audio Codecs</source>
@@ -6376,8 +6376,8 @@ Quere sobrescribila?</translation>
         <translation>Seleccionar o ficheiro de destino</translation>
     </message>
     <message>
-        <source>Starting libav...</source>
-        <translation>Iniciando «libav»...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>Iniciando «ffmpeg»...</translation>
     </message>
     <message>
         <source>Slide: </source>
@@ -8394,7 +8394,7 @@ Exemplo: Se Y = 25%, entón eliminase a primeira cuarta parte superior da imaxe.
     </message>
     <message>
         <source>Video stream start position is %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A posición de inicio do fluxo de vídeo é %1</translation>
     </message>
 </context>
 <context>
@@ -8682,7 +8682,7 @@ A parte azul representa a parte do vídeo que se selecciona (a que será utiliza
     <message>
         <source>Change the sound volume</source>
         <extracomment>Tooltip in dialog box</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Axusta o volume</translation>
     </message>
 </context>
 </TS>

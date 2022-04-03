@@ -80,7 +80,7 @@ int HelpContent::ComputeTreeSize(QModelIndex Parent,QFontMetrics &FM,int Indent)
     if (!Parent.isValid()) Parent=Model->index(0,0);  // if Parent is root
     Item=Model->contentItemAt(Parent);
     if (Item) {
-        NewSize=FM.width(Item->url().toString())+Indent;
+        NewSize=FM.horizontalAdvance(Item->url().toString())+Indent;
         if (Size<NewSize) Size=NewSize;
     }
 
@@ -90,7 +90,7 @@ int HelpContent::ComputeTreeSize(QModelIndex Parent,QFontMetrics &FM,int Indent)
             Current=Model->index(row,0,Parent);
             Item   =Model->contentItemAt(Current);
             if (Item) {
-                NewSize=FM.width(Item->url().toString())+Indent;
+                NewSize=FM.horizontalAdvance(Item->url().toString())+Indent;
                 if (Size<NewSize) Size=NewSize;
             }
             if (Model->hasChildren(Current)) {

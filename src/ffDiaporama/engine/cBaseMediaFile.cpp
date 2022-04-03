@@ -29,79 +29,16 @@
 // Include some additional standard class
 #include "cBaseMediaFile.h"
 #include "_Diaporama.h"
-#include "cLocation.h"
 
 //****************************************************************************************************************************************************************
 // EXIV2 PART
 //****************************************************************************************************************************************************************
-#ifdef Q_OS_WIN
-    #include <exif.hpp>
-    #if (EXIV2_MAJOR_VERSION>=0)||((EXIV2_MAJOR_VERSION==0)&&(EXIV2_MINOR_VERSION>20))
-        #include <exiv2.hpp>
-        bool Exiv2WithPreview=true;
-    #else
-        bool Exiv2WithPreview=false;
-        #include <image.hpp>
-    #endif
-#else
-    #include <exiv2/exif.hpp>
-    #if (EXIV2_MAJOR_VERSION>=0)||((EXIV2_MAJOR_VERSION==0)&&(EXIV2_MINOR_VERSION>20))
-        #include <exiv2/exiv2.hpp>
-        bool Exiv2WithPreview=true;
-    #else
-        bool Exiv2WithPreview=false;
-        #include <exiv2/image.hpp>
-    #endif
-#endif
-
+#include <exiv2/exif.hpp>
+#include <exiv2/exiv2.hpp>
+bool Exiv2WithPreview=true;
 int  Exiv2MajorVersion=EXIV2_MAJOR_VERSION;
 int  Eviv2MinorVersion=EXIV2_MINOR_VERSION;
 int  Exiv2PatchVersion=EXIV2_PATCH_VERSION;
-
-#if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-    //****************************************************************************************************************************************************************
-    // TAGLIB PART only if LIBAV 8 after, thumbnails are reading using libav
-    //****************************************************************************************************************************************************************
-
-    #include <taglib/fileref.h>
-    #include <taglib/tbytevector.h>
-    #include <taglib/id3v2tag.h>
-    #include <taglib/id3v2frame.h>
-    #include <taglib/id3v2header.h>
-    #include <taglib/id3v2framefactory.h>
-    #include <taglib/attachedpictureframe.h>
-    #include <taglib/mpegfile.h>
-    #include <taglib/flacfile.h>
-    #include <taglib/mp4file.h>
-    #include <taglib/vorbisfile.h>
-    #include <taglib/oggflacfile.h>
-    #include <taglib/asffile.h>
-    #include <taglib/mp4tag.h>
-    #include <taglib/mp4item.h>
-    #include <taglib/mp4coverart.h>
-
-    #if (TAGLIB_MAJOR_VERSION>=1) && (TAGLIB_MINOR_VERSION>=7)
-        #define TAGLIBWITHFLAC
-    #endif
-    #ifdef TAGLIB_WITH_ASF
-        #if (TAGLIB_WITH_ASF>=1)
-            #define TAGLIBWITHASF
-            #if (TAGLIB_MAJOR_VERSION>=1) && (TAGLIB_MINOR_VERSION>=7)
-                #define TAGLIBWITHASFPICTURE
-            #endif
-        #endif
-    #endif
-    #ifdef TAGLIB_WITH_MP4
-        #if (TAGLIB_WITH_MP4>=1)
-            #define TAGLIBWITHMP4
-        #endif
-    #endif
-
-    int TaglibMajorVersion=TAGLIB_MAJOR_VERSION;
-    int TaglibMinorVersion=TAGLIB_MINOR_VERSION;
-    int TaglibPatchVersion=TAGLIB_PATCH_VERSION;
-
-#endif
 
 //****************************************************************************************************************************************************************
 
@@ -112,11 +49,6 @@ int  Exiv2PatchVersion=EXIV2_PATCH_VERSION;
     #define 	INT64_MAX   0x7fffffffffffffffLL
     #define 	INT64_MIN   (-INT64_MAX - 1LL)
 #endif
-
-//#ifdef _MSC_VER
-//    #undef AV_TIME_BASE_Q
-//    AVRational AV_TIME_BASE_Q={1, AV_TIME_BASE};
-//#endif
 
 #define VC_ERROR        0x00000001
 #define VC_BUFFER       0x00000002
@@ -180,93 +112,6 @@ bool gm_decode_base64(uchar *buffer,uint &len) {
     len=pos;
     return true;
 }
-
-#ifdef USETAGLIB
-    QImage *GetEmbededImage(QString FileName) {
-        // Try to get embeded image
-        QImage *Image=new QImage();
-
-        //*********** MP3
-        if ((Image->isNull())&&(QFileInfo(FileName).suffix().toLower()=="mp3")) {
-            TagLib::MPEG::File MP3File(TagLib::FileName(FileName.toLocal8Bit()));
-            if (MP3File.ID3v2Tag()) {
-                TagLib::ID3v2::FrameList l=MP3File.ID3v2Tag()->frameListMap()["APIC"];
-                if (!l.isEmpty()) {
-                    TagLib::ID3v2::AttachedPictureFrame *pic=static_cast<TagLib::ID3v2::AttachedPictureFrame *>(l.front());
-                    if (pic) Image->loadFromData((const uchar *)pic->picture().data(),pic->picture().size());
-                }
-            }
-        }
-        //*********** FLAC
-        #ifdef TAGLIBWITHFLAC
-        if ((Image->isNull())&&(QFileInfo(FileName).suffix().toLower()=="flac")) {
-            TagLib::FLAC::File                      FLACFile(TagLib::FileName(FileName.toLocal8Bit()));
-            TagLib::List<TagLib::FLAC::Picture *>   PictList=FLACFile.pictureList();
-
-            // Search PreferedPic : the one with the type lesser
-            TagLib::FLAC::Picture *PreferedPic=NULL;
-            if (!PictList.isEmpty()) for (uint i=0;i<PictList.size();i++) {
-                TagLib::FLAC::Picture *Pic=PictList[i];
-                if ((Pic!=NULL)&&((PreferedPic==NULL)||(PreferedPic->type()>Pic->type()))) PreferedPic=Pic;
-            }
-            if (PreferedPic) Image->loadFromData((const uchar *)PreferedPic->data().data(),PreferedPic->data().size());
-        }
-        #endif
-        //*********** OGG
-        if ((Image->isNull())&&((QFileInfo(FileName).suffix().toLower()=="ogg")||(QFileInfo(FileName).suffix().toLower()=="oga"))) {
-            TagLib::Vorbis::File OggFile(TagLib::FileName(FileName.toLocal8Bit()));
-            if ((OggFile.tag())&&(OggFile.tag()->contains(TagLib::String("COVERART")))) {
-                const TagLib::StringList &CoverList=OggFile.tag()->fieldListMap()["COVERART"];
-                for (TagLib::StringList::ConstIterator it=CoverList.begin();it!=CoverList.end();it++) {
-                    const TagLib::ByteVector &Vector=(*it).data(TagLib::String::UTF8);
-                    if ((Image->isNull())&&(Vector.size())) {
-                        uint  len    =Vector.size();
-                        uchar *buffer=(uchar *)malloc(len);
-                        memcpy(buffer,Vector.data(),len);
-                        if (gm_decode_base64(buffer,len))
-                            Image->loadFromData((const uchar *)buffer,len);
-                        free(buffer);
-                    }
-
-                }
-            }
-        }
-        //*********** MP4/M4A => don't work with M4V or MP4 video
-        #ifdef TAGLIBWITHMP4
-        if ((Image->isNull())&&(/*(QFileInfo(FileName).suffix().toLower()=="mp4")||*/(QFileInfo(FileName).suffix().toLower()=="m4a")||(QFileInfo(FileName).suffix().toLower()=="m4v"))) {
-            TagLib::MP4::File MP4File(TagLib::FileName(FileName.toLocal8Bit()));
-            if ((MP4File.tag())&&(MP4File.tag()->itemListMap().contains("covr"))) {
-                TagLib::MP4::CoverArtList coverArtList = MP4File.tag()->itemListMap()["covr"].toCoverArtList();
-                if (coverArtList.size()!= 0) {
-                    TagLib::MP4::CoverArt ca = coverArtList.front();
-                    Image->loadFromData((const uchar *) ca.data().data(),ca.data().size());
-                }
-            }
-        }
-        #endif
-        //*********** ASF/WMA //////////////////// A FINIR ! ///////////// CA A PAS L'AIR DE MARCHER !
-        #ifdef TAGLIBWITHASF
-        if ((Image->isNull())&&(QFileInfo(FileName).suffix().toLower()=="wma")) {
-            TagLib::ASF::File ASFFile(TagLib::FileName(TagLib::FileName(FileName.toLocal8Bit())));
-            #ifdef TAGLIBWITHASFPICTURE
-            if ((ASFFile.tag())&&(ASFFile.tag()->attributeListMap().contains("WM/Picture"))) {
-                const TagLib::ASF::AttributeList &attrList=ASFFile.tag()->attributeListMap()["WM/Picture"];
-                if (!attrList.isEmpty()) {
-                        TagLib::ASF::Picture pic = attrList[0].toPicture();
-                        if (pic.isValid()) Image->loadFromData((const uchar *)pic.picture().data(),pic.picture().size());
-                }
-            }
-            #endif
-        }
-        #endif
-        //***********
-        if (!Image->isNull()) return Image; else {
-            delete Image;
-            return NULL;
-        }
-    }
-#endif
-
 
 //====================================================================================================================
 
@@ -541,8 +386,8 @@ bool cBaseMediaFile::GetInformationFromFile(QString FileName,QStringList *AliasL
     }
 
     FileSize     =QFileInfo(FileName).size();
-    ModifDateTime=QFileInfo(FileName).lastModified();
-    CreatDateTime=QFileInfo(FileName).created();
+    ModifDateTime=QFileInfo(FileName).metadataChangeTime();
+    CreatDateTime=QFileInfo(FileName).lastModified();
 
     IsValide=true;
     return true;
@@ -686,9 +531,6 @@ bool cFolder::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringList
         for (int j=0;j<Directorys.count();j++) if (Directorys[j].fileName().toLower()=="desktop.ini") {
             QFile   FileIO(AdjustedFileName+Directorys[j].fileName());
             QString IconFile ="";
-            #ifdef Q_OS_WIN
-            int     IconIndex=0;
-            #endif
             if (FileIO.open(QIODevice::ReadOnly/*|QIODevice::Text*/)) {
                 // Sometimes this kind of files have incorrect line terminator : nor \r\n nor \n
                 QTextStream FileST(&FileIO);
@@ -705,11 +547,6 @@ bool cFolder::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringList
                         Line=AllInfo;
                         AllInfo="";
                     }
-                    #ifdef Q_OS_WIN
-                    if ((Line.toUpper().startsWith("ICONINDEX"))&&(Line.indexOf("=")!=-1)) {
-                        IconIndex=Line.mid(Line.indexOf("=")+1).toInt();
-                    } else
-                    #endif
                     if ((Line.toUpper().startsWith("ICONFILE"))&&(Line.indexOf("=")!=-1)) {
                         Line=Line.mid(Line.indexOf("=")+1).trimmed();
                         // Replace all variables like %systemroot%
@@ -725,9 +562,6 @@ bool cFolder::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringList
                 FileIO.close();
             }
             if (IconFile.toLower().endsWith(".jpg") || IconFile.toLower().endsWith(".png") || IconFile.toLower().endsWith(".ico")) Icon->LoadIcons(IconFile);
-            #ifdef Q_OS_WIN
-            else Icon->LoadIcons(GetIconForFileOrDir(IconFile,IconIndex));
-            #endif
         }
     }
 
@@ -754,11 +588,6 @@ cffDProjectFile::cffDProjectFile(cApplicationConfig *ApplicationConfig):cBaseMed
     InitDefaultValues();
 }
 
-cffDProjectFile::~cffDProjectFile() {
-    if (Location) delete (cLocation *)Location;
-    Location=NULL;
-}
-
 //====================================================================================================================
 
 void cffDProjectFile::InitDefaultValues() {
@@ -772,19 +601,18 @@ void cffDProjectFile::InitDefaultValues() {
     Composer        ="";
     DefaultLanguage =ApplicationConfig->DefaultLanguage;
     ffDRevision     =CurrentAppVersion;
-    Location        =NULL;
 }
 
 //====================================================================================================================
 
-bool cffDProjectFile::LoadBasicInformationFromDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,QStringList *AliasList,bool *ModifyFlag,QList<cSlideThumbsTable::TRResKeyItem> *ResKeyList,bool DuplicateRes) {
-    return LoadFromXML(ParentElement,ElementName,PathForRelativPath,AliasList,ModifyFlag,ResKeyList,DuplicateRes,true);
+bool cffDProjectFile::LoadBasicInformationFromDatabase(QDomElement *ParentElement) {
+    return LoadFromXML(ParentElement);
 }
 
 //====================================================================================================================
 
-void cffDProjectFile::SaveBasicInformationToDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool) {
-    SaveToXML(ParentElement,ElementName,PathForRelativPath,ForceAbsolutPath,ReplaceList,ResKeyList,false);
+void cffDProjectFile::SaveBasicInformationToDatabase(QDomElement *ParentElement) {
+    SaveToXML(ParentElement);
 
     QDomDocument    DomDocument;
     QDomElement     Element=DomDocument.createElement("Project");
@@ -795,7 +623,7 @@ void cffDProjectFile::SaveBasicInformationToDatabase(QDomElement *ParentElement,
 
 //====================================================================================================================
 
-void cffDProjectFile::SaveToXML(QDomElement *ParentElement,QString,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel) {
+void cffDProjectFile::SaveToXML(QDomElement *ParentElement) {
     QDomDocument    DomDocument;
     QDomElement     Element=DomDocument.createElement("ffDiaporamaProjectProperties");
     Element.setAttribute("Title",Title);
@@ -820,17 +648,12 @@ void cffDProjectFile::SaveToXML(QDomElement *ParentElement,QString,QString PathF
         SubElement.setAttribute("InSlide",  GetInformationValue("Chapter_"+ChapterNum+":InSlide",&ChaptersProperties));
         Element.appendChild(SubElement);
     }
-    if (Location) {
-        QDomElement SubElement=DomDocument.createElement("PrjLocation");
-        ((cLocation *)Location)->SaveToXML(&SubElement,"",PathForRelativPath,ForceAbsolutPath,ReplaceList,ResKeyList,IsModel);
-        Element.appendChild(SubElement);
-    }
     ParentElement->appendChild(Element);
 }
 
 //====================================================================================================================
 
-bool cffDProjectFile::LoadFromXML(QDomElement *ParentElement,QString,QString PathForRelativPath,QStringList *AliasList,bool *ModifyFlag,QList<cSlideThumbsTable::TRResKeyItem> *ResKeyList,bool DuplicateRes,bool IsPartial) {
+bool cffDProjectFile::LoadFromXML(QDomElement *ParentElement) {
     InitDefaultValues();
     bool IsOk=false;
     if ((ParentElement->elementsByTagName("ffDiaporamaProjectProperties").length()>0)&&(ParentElement->elementsByTagName("ffDiaporamaProjectProperties").item(0).isElement()==true)) {
@@ -874,12 +697,6 @@ bool cffDProjectFile::LoadFromXML(QDomElement *ParentElement,QString,QString Pat
                 }
             }
         }
-        if ((!IsPartial)&&(Element.elementsByTagName("PrjLocation").length()>0)&&(Element.elementsByTagName("PrjLocation").item(0).isElement()==true)) {
-            QDomElement SubElement=Element.elementsByTagName("PrjLocation").item(0).toElement();
-            if (Location) delete (cLocation *)Location;
-            Location=new cLocation(ApplicationConfig);
-            ((cLocation *)Location)->LoadFromXML(&SubElement,"",PathForRelativPath,AliasList,ModifyFlag,ResKeyList,DuplicateRes);
-        }
         IsOk=true;
     }
     if ((ParentElement->elementsByTagName("Project").length()>0)&&(ParentElement->elementsByTagName("Project").item(0).isElement()==true)) {
@@ -900,7 +717,7 @@ bool cffDProjectFile::LoadFromXML(QDomElement *ParentElement,QString,QString Pat
 
 //====================================================================================================================
 
-bool cffDProjectFile::GetChildFullInformationFromFile(bool IsPartial,cCustomIcon *Icon,QStringList *) {
+bool cffDProjectFile::GetChildFullInformationFromFile(cCustomIcon *Icon,QStringList *) {
     Icon->LoadIcons(&ApplicationConfig->DefaultFFDIcon);
 
     QFile           file(FileName());
@@ -925,7 +742,7 @@ bool cffDProjectFile::GetChildFullInformationFromFile(bool IsPartial,cCustomIcon
         if (domDocument.setContent(ffDPart,true,&errorStr,&errorLine,&errorColumn)) {
             root = domDocument.documentElement();
             // Load project properties
-            if (root.tagName()==FFD_APPLICATION_ROOTNAME) LoadFromXML(&root,"",QFileInfo(file.fileName()).absolutePath(),NULL,NULL,NULL,false,IsPartial);
+            if (root.tagName()==FFD_APPLICATION_ROOTNAME) LoadFromXML(&root);
         }
         file.close();
     }
@@ -1093,11 +910,7 @@ bool cImageFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
         // ******************************************************************************************************
         Exiv2::Image::AutoPtr ImageFile;
         try {
-            #ifdef Q_OS_WIN
-                ImageFile=Exiv2::ImageFactory::open(FileName().toLocal8Bit().data());
-            #else
-                ImageFile=Exiv2::ImageFactory::open(FileName().toUtf8().data());
-            #endif
+            ImageFile=Exiv2::ImageFactory::open(FileName().toUtf8().data());
             ExifOk=true;
         }
         catch( Exiv2::Error& ) {
@@ -1118,11 +931,7 @@ bool cImageFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
                     if ((CurrentData->typeId()!=Exiv2::undefined)&&
                         (!(((CurrentData->typeId()==Exiv2::unsignedByte)||(CurrentData->typeId()==Exiv2::signedByte))&&(CurrentData->size()>64)))) {
                         QString Key  =QString().fromStdString(CurrentData->key());
-                        #ifdef Q_OS_WIN
-                        QString Value=QString().fromStdString(CurrentData->print(&exifData).c_str());
-                        #else
                         QString Value=QString().fromUtf8(CurrentData->print(&exifData).c_str());
-                        #endif
                         if (Key.startsWith("Exif.")) Key=Key.mid(QString("Exif.").length());
                         ExtendedProperties->append(Key+QString("##")+Value);
                     }
@@ -1138,11 +947,6 @@ bool cImageFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
             // Get size information
             ImageWidth =ImageFile->pixelWidth();
             ImageHeight=ImageFile->pixelHeight();
-
-            //if (GetInformationValue("Photo.PixelXDimension")!="")       ImageWidth =GetInformationValue("Photo.PixelXDimension").toInt();
-            //    else if (GetInformationValue("Image.ImageWidth")!="")   ImageWidth =GetInformationValue("Image.ImageWidth").toInt();            // TIFF Version
-            //if (GetInformationValue("Photo.PixelYDimension")!="")       ImageHeight=GetInformationValue("Photo.PixelYDimension").toInt();
-            //    else if (GetInformationValue("Image.ImageLength")!="")  ImageHeight=GetInformationValue("Image.ImageLength").toInt();           // TIFF Version
 
             // switch ImageWidth and ImageHeight if image was rotated
             if ((ImageOrientation==6)||(ImageOrientation==8)) {
@@ -1161,19 +965,19 @@ bool cImageFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
                         QImage *IconImage=new QImage();
                         if (IconImage->loadFromData(QByteArray((const char*)Image.pData(),Image.size()))) {
                             if (ImageOrientation==8) {          // Rotating image anti-clockwise by 90 degrees...'
-                                QMatrix matrix;
+                                QTransform matrix;
                                 matrix.rotate(-90);
                                 QImage *NewImage=new QImage(IconImage->transformed(matrix,Qt::SmoothTransformation));
                                 delete IconImage;
                                 IconImage=NewImage;
                             } else if (ImageOrientation==3) {   // Rotating image clockwise by 180 degrees...'
-                                QMatrix matrix;
+                                QTransform matrix;
                                 matrix.rotate(180);
                                 QImage *NewImage=new QImage(IconImage->transformed(matrix,Qt::SmoothTransformation));
                                 delete IconImage;
                                 IconImage=NewImage;
                             } else if (ImageOrientation==6) {   // Rotating image clockwise by 90 degrees...'
-                                QMatrix matrix;
+                                QTransform matrix;
                                 matrix.rotate(90);
                                 QImage *NewImage=new QImage(IconImage->transformed(matrix,Qt::SmoothTransformation));
                                 delete IconImage;
@@ -1480,447 +1284,6 @@ void cImageClipboard::SaveToXML(QDomElement *ParentElement,QString ElementName,Q
     ParentElement->appendChild(SubElement);
 }
 
-//*********************************************************************************************************************************************
-// Google maps map
-//*********************************************************************************************************************************************
-
-cGMapsMap::cGMapsMap(cApplicationConfig *ApplicationConfig):cImageClipboard(ApplicationConfig) {
-    ObjectType  =OBJECTTYPE_GMAPSMAP;
-    ObjectName  ="GoogleMapsMap";
-    NoExifData  =true;
-    MapType     =Hybrid;
-    ImageSize   =Small;
-    ZoomLevel   =13;
-    Scale       =1;
-    IsMapValide =false;
-    IsValide    =true;
-}
-
-//====================================================================================================================
-
-cGMapsMap::~cGMapsMap() {
-    while (List.count()) delete (cLocation *)List.takeLast();
-}
-
-//====================================================================================================================
-
-void cGMapsMap::SaveToXML(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel) {
-    QDomDocument    DomDocument;
-    QDomElement     SubElement=DomDocument.createElement(ObjectName);
-    bool            HaveVarLoc=false;
-
-    // if model, then check if map depends on projet or chapter location
-    if (IsModel) for (int i=0;i<List.count();i++) if (((cLocation *)List[i])->LocationType!=cLocation::FREE) HaveVarLoc=true;
-
-    SaveBasicInformationToDatabase(&SubElement,ElementName,PathForRelativPath,ForceAbsolutPath,ReplaceList,ResKeyList,IsModel);
-
-    if ((!IsModel)||(IsModel && !HaveVarLoc)) {
-        SubElement.setAttribute("RessourceKey",RessourceKey);
-        if (ResKeyList) {
-            // Check if RessourceKey is already in the ResKeyList
-            bool ToAppend=true;
-            for (int i=0;i<ResKeyList->count();i++) if (ResKeyList->at(i)==RessourceKey) ToAppend=false;
-            // If not found, then add it to the list
-            if (ToAppend) ResKeyList->append(RessourceKey);
-        }
-    } else SubElement.setAttribute("RessourceKey",-1); // Don't save ressource if model and map depends on projet or chapter location
-    ParentElement->appendChild(SubElement);
-}
-
-//====================================================================================================================
-
-bool cGMapsMap::LoadBasicInformationFromDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,QStringList *AliasList,bool *ModifyFlag,QList<cSlideThumbsTable::TRResKeyItem> *ResKeyList,bool DuplicateRes) {
-    int i;
-    if (cImageClipboard::LoadBasicInformationFromDatabase(ParentElement,ElementName,PathForRelativPath,AliasList,ModifyFlag,ResKeyList,DuplicateRes)) {
-        if (ParentElement->hasAttribute("MapType"))   MapType    =(GMapsMapType)ParentElement->attribute("MapType").toInt();
-        if (ParentElement->hasAttribute("ImageSize")) ImageSize  =(GMapsImageSize)ParentElement->attribute("ImageSize").toInt();
-        if (ParentElement->hasAttribute("ZoomLevel")) ZoomLevel  =ParentElement->attribute("ZoomLevel").toInt();
-        if (ParentElement->hasAttribute("Scale"))     Scale      =ParentElement->attribute("Scale").toInt();
-        if (ParentElement->hasAttribute("MapCx"))     MapCx      =GetDoubleValue(*ParentElement,"MapCx");
-        if (ParentElement->hasAttribute("MapCy"))     MapCy      =GetDoubleValue(*ParentElement,"MapCy");
-        if (ParentElement->hasAttribute("MapValide")) IsMapValide=ParentElement->attribute("MapValide")=="1";
-
-        // Loading of locations list
-        while (List.count()) delete (cLocation *)List.takeLast();
-        i=0;
-        while ((ParentElement->elementsByTagName(QString("Location_%1").arg(i)).length()>0)&&(ParentElement->elementsByTagName(QString("Location_%1").arg(i)).item(0).isElement()==true)) {
-            QDomElement SubElement=ParentElement->elementsByTagName(QString("Location_%1").arg(i)).item(0).toElement();
-            cLocation *Location=new cLocation(ApplicationConfig);
-            Location->LoadFromXML(&SubElement,"",PathForRelativPath,AliasList,ModifyFlag,ResKeyList,DuplicateRes);
-            List.append(Location);
-            i++;
-        }
-        // Loading of pending request sections list
-        RequestList.clear();
-        i=0;
-        while ((ParentElement->elementsByTagName(QString("PendingSection_%1").arg(i)).length()>0)&&(ParentElement->elementsByTagName(QString("PendingSection_%1").arg(i)).item(0).isElement()==true)) {
-            QDomElement     SubElement=ParentElement->elementsByTagName(QString("PendingSection_%1").arg(i)).item(0).toElement();
-            RequestSection  Item;
-            double          X=1,Y=1;
-            QString         R;
-            if (SubElement.hasAttribute("X")) X=GetDoubleValue(SubElement,"X");
-            if (SubElement.hasAttribute("Y")) Y=GetDoubleValue(SubElement,"Y");
-            if (SubElement.hasAttribute("R")) R=SubElement.attribute("R");
-            Item.Rect=QRectF(X,Y,SectionWith,SectionHeight);
-            Item.GoogleRequest=R;
-            RequestList.append(Item);
-            i++;
-        }
-        return true;
-    } else return false;
-}
-
-//====================================================================================================================
-
-void cGMapsMap::SaveBasicInformationToDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel) {
-    QDomDocument Document;
-    cImageClipboard::SaveBasicInformationToDatabase(ParentElement,ElementName,PathForRelativPath,ForceAbsolutPath,ReplaceList,ResKeyList,IsModel);
-
-    bool HaveVarLoc=false;
-
-    // if model, then check if map depends on projet or chapter location
-    if (IsModel) for (int i=0;i<List.count();i++) if (((cLocation *)List[i])->LocationType!=cLocation::FREE) HaveVarLoc=true;
-
-    ParentElement->setAttribute("MapValide",(IsMapValide && !HaveVarLoc)?"1":"0");
-    ParentElement->setAttribute("MapType",MapType);
-    ParentElement->setAttribute("ImageSize",ImageSize);
-    ParentElement->setAttribute("ZoomLevel",ZoomLevel);
-    ParentElement->setAttribute("Scale",Scale);
-    ParentElement->setAttribute("MapCx",MapCx);
-    ParentElement->setAttribute("MapCy",MapCy);
-    // Saving of locations list
-    for (int i=0;i<List.count();i++) {
-        QDomElement SubElement=Document.createElement(QString("Location_%1").arg(i));
-        ((cLocation *)List[i])->SaveToXML(&SubElement,"",PathForRelativPath,ForceAbsolutPath,ReplaceList,ResKeyList,IsModel);
-        ParentElement->appendChild(SubElement);
-    }
-    // Saving of pending request sections list
-    for (int i=0;i<RequestList.count();i++) {
-        QDomElement SubElement=Document.createElement(QString("PendingSection_%1").arg(i));
-        SubElement.setAttribute("X",RequestList[i].Rect.left());
-        SubElement.setAttribute("Y",RequestList[i].Rect.top());
-        SubElement.setAttribute("R",RequestList[i].GoogleRequest);
-        ParentElement->appendChild(SubElement);
-    }
-}
-
-//====================================================================================================================
-
-bool cGMapsMap::GetInformationFromFile(QString,QStringList *,bool *,qlonglong) {
-    QSize Size=GetCurrentImageSize();
-    ImageWidth=Size.width();
-    ImageHeight=Size.height();
-    ImageOrientation=0;
-    AspectRatio=double(ImageHeight)/double(ImageWidth);
-    ObjectGeometry=IMAGE_GEOMETRY_16_9;
-    IsValide=true;
-    return true;
-}
-
-//====================================================================================================================
-
-bool cGMapsMap::GetChildFullInformationFromFile(bool IsPartial,cCustomIcon *Icon,QStringList *ExtendedProperties) {
-    if ((cImageClipboard::GetChildFullInformationFromFile(IsPartial,Icon,ExtendedProperties))&&(ExtendedProperties)) {
-        ExtendedProperties->append(QApplication::translate("cBaseMediaFile","Map type")+QString("##")+QString("%1").arg(GetCurrentMapTypeName()));
-        ExtendedProperties->append(QApplication::translate("cBaseMediaFile","Image size")+QString("##")+QString("%1").arg(GetCurrentImageSizeName()));
-        ExtendedProperties->append(QApplication::translate("cBaseMediaFile","Map zoom and size")+QString("##")+QString("%1").arg(GetMapSizesPerZoomLevel()[ZoomLevel]));
-        ExtendedProperties->append(QApplication::translate("cBaseMediaFile","Map latitude")+QString("##")+QString("%1").arg(PIXEL2GPS_Y(MapCy,ZoomLevel,Scale)));
-        ExtendedProperties->append(QApplication::translate("cBaseMediaFile","Map longitude")+QString("##")+QString("%1").arg(PIXEL2GPS_X(MapCx,ZoomLevel,Scale)));
-    }
-    return true;
-}
-
-//====================================================================================================================
-
-QString cGMapsMap::GetTechInfo(QStringList *) {
-    return QString(QApplication::translate("cBaseMediaFile","%1 location(s)")).arg(List.count());
-}
-
-//====================================================================================================================
-
-QString cGMapsMap::GetTAGInfo(QStringList *) {
-    return QString("%1-%2").arg(GetCurrentMapTypeName()).arg(GetCurrentImageSizeName());
-}
-
-//====================================================================================================================
-
-QStringList cGMapsMap::GetSummaryText(QStringList *ExtendedProperties) {
-    QStringList SummaryText;
-    SummaryText.append(GetFileTypeStr());
-    SummaryText.append(GetTAGInfo(ExtendedProperties));
-    SummaryText.append(QApplication::translate("cBaseMediaFile","GPS Coordinates %1 / %2").arg(PIXEL2GPS_Y(MapCy,ZoomLevel,Scale)).arg(PIXEL2GPS_X(MapCx,ZoomLevel,Scale)));
-    return SummaryText;
-}
-
-//====================================================================================================================
-
-QImage *cGMapsMap::ImageAt(bool PreviewMode) {
-    if (RessourceKey==-1) {
-        QImage   *Img=new QImage(":/img/defaultmap.png");  // If no ressource at this point then we are displaying a model !
-        QString  Text=QApplication::translate("cBaseMediaFile","%1\nZoom %2").arg(GetCurrentImageSizeName(false)).arg(ZoomLevel);
-        QPainter P;
-        P.begin(Img);
-        QFont font= QApplication::font();
-        font.setPixelSize(double(Img->height())/double(6));
-        P.setFont(font);
-        P.setPen(QPen(Qt::black));
-        P.drawText(QRectF(0,0,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(1,0,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(2,0,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(0,2,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(1,2,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(2,2,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(0,1,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.drawText(QRectF(2,1,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.setPen(QPen(Qt::white));
-        P.drawText(QRectF(1,1,Img->width()-2,Img->height()-2),Text,QTextOption(Qt::AlignHCenter|Qt::AlignVCenter));
-        P.end();
-        return Img;
-    }   else if (IsMapValide)   return cImageClipboard::ImageAt(PreviewMode);
-        else                    return new QImage(CreateDefaultImage(NULL));
-}
-
-//====================================================================================================================
-
-QStringList cGMapsMap::GetGoogleMapTypeNames() {
-    QStringList GoogleMapTypeName;
-    GoogleMapTypeName.append("roadmap");
-    GoogleMapTypeName.append("satellite");
-    GoogleMapTypeName.append("terrain");
-    GoogleMapTypeName.append("hybrid");
-    return GoogleMapTypeName;
-}
-
-QStringList cGMapsMap::GetMapTypeNames() {
-    QStringList List;
-    List.append(QApplication::translate("cBaseMediaFile","Roadmap"));
-    List.append(QApplication::translate("cBaseMediaFile","Satellite"));
-    List.append(QApplication::translate("cBaseMediaFile","Terrain"));
-    List.append(QApplication::translate("cBaseMediaFile","Hybrid"));
-    return List;
-}
-
-QStringList cGMapsMap::GetShortImageSizeNames() {
-    QStringList List;
-    List.append(QApplication::translate("cBaseMediaFile","Small"));
-    List.append("720p");
-    List.append("720px4");
-    List.append("720px9");
-    List.append("1080p");
-    List.append("1080px4");
-    List.append("1080px9");
-    return List;
-}
-
-QStringList cGMapsMap::GetImageSizeNames() {
-    QStringList List;
-    List.append(QApplication::translate("cBaseMediaFile","Small (640x360)"));
-    List.append(QApplication::translate("cBaseMediaFile","720p-16:9 (1280x720)"));
-    List.append(QApplication::translate("cBaseMediaFile","720px4-16:9 (2560x1440)"));
-    List.append(QApplication::translate("cBaseMediaFile","720px9-16:9 (3840x2160)"));
-    List.append(QApplication::translate("cBaseMediaFile","1080p-16:9 (1920x1080)"));
-    List.append(QApplication::translate("cBaseMediaFile","1080px4-16:9 (3840x2160)"));
-    List.append(QApplication::translate("cBaseMediaFile","1080px9-16:9 (5760x3240)"));
-    return List;
-}
-
-QString cGMapsMap::GetCurrentMapTypeName() {
-    return GetMapTypeNames().at(MapType);
-}
-
-QString cGMapsMap::GetCurrentGoogleMapTypeName() {
-    return GetGoogleMapTypeNames().at(MapType);
-}
-
-QString cGMapsMap::GetCurrentImageSizeName(bool Full) {
-    if (Full) return GetImageSizeNames().at(ImageSize);
-        else  return GetShortImageSizeNames().at(ImageSize);
-}
-
-QSize cGMapsMap::GetCurrentImageSize() {
-    switch (ImageSize) {
-        case GMapsImageSize_NBR:
-        case Small:             return QSize(640,360);
-        case FS720P:            return QSize(1280,720);
-        case FS720X4:           return QSize(2560,1440);
-        case FS720X9:           return QSize(3840,2160);
-        case FS1080P:           return QSize(1920,1080);
-        case FS1080X4:          return QSize(3840,2160);
-        case FS1080X9:          return QSize(5760,3240);
-    }
-    return QSize(600,600);
-}
-
-//====================================================================================================================
-// return minimum zoom level depending on current image size
-
-int cGMapsMap::GetMinZoomLevelForSize() {
-    switch (ImageSize) {
-        case GMapsImageSize_NBR:
-        case Small:             return 2;
-        case FS720P:            return 3;
-        case FS720X4:           return 4;
-        case FS720X9:           return 5;
-        case FS1080P:           return 4;
-        case FS1080X4:          return 5;
-        case FS1080X9:          return 6;
-    }
-    return 5;
-}
-
-//====================================================================================================================
-
-int cGMapsMap::ComputeNbrSection(int Size,int Divisor) {
-    int Ret=Size/Divisor;
-    if (Ret*Divisor<Size) Ret++;
-    return Ret;
-}
-
-QRectF cGMapsMap::GetGPSRectF() {
-    if (List.isEmpty()) return QRectF(0,0,0,0);
-    double  GPS_x1=((cLocation *)List.at(0))->GPS_cx;
-    double  GPS_x2=GPS_x1;
-    double  GPS_y1=((cLocation *)List.at(0))->GPS_cy;
-    double  GPS_y2=GPS_y1;
-
-    for (int i=1;i<List.count();i++) {
-        if (((cLocation *)List.at(i))->GPS_cx<GPS_x1) GPS_x1=((cLocation *)List.at(i))->GPS_cx;
-        if (((cLocation *)List.at(i))->GPS_cx>GPS_x2) GPS_x2=((cLocation *)List.at(i))->GPS_cx;
-        if (((cLocation *)List.at(i))->GPS_cy<GPS_y1) GPS_y1=((cLocation *)List.at(i))->GPS_cy;
-        if (((cLocation *)List.at(i))->GPS_cy>GPS_y2) GPS_y2=((cLocation *)List.at(i))->GPS_cy;
-    }
-    return QRectF(GPS_x1,GPS_y1,GPS_x2-GPS_x1,GPS_y2-GPS_y1);
-}
-
-QStringList cGMapsMap::GetMapSizesPerZoomLevel() {
-    QStringList DistanceList;
-    QSize       MapS   =GetCurrentImageSize();
-    QRectF      Wanted =GetGPSRectF();
-    double      WWidth =DISTANCE(Wanted.left(),Wanted.top(),Wanted.right(),Wanted.top());
-    double      WHeight=DISTANCE(Wanted.left(),Wanted.top(),Wanted.left(), Wanted.bottom());
-    double      W      =MapS.width();
-    double      H      =MapS.height();
-    double      GPS0x  =0;
-    double      GPS0y  =0;
-    int         Start  =GetMinZoomLevelForSize();
-
-    for (int i=0;i<Start;i++) DistanceList.append(QString());
-
-    for (int i=Start;i<=21;i++) {
-        double  PIX0x =GPS2PIXEL_X(GPS0x,i,Scale);
-        double  PIX0y =GPS2PIXEL_Y(GPS0y,i,Scale);
-        double  GPS1x =PIXEL2GPS_X(PIX0x+W,i,Scale);
-        double  GPS1y =PIXEL2GPS_Y(PIX0y+H,i,Scale);
-        double  Width =DISTANCE(GPS0x,GPS0y,GPS1x,GPS0y);
-        double  Height=DISTANCE(GPS0x,GPS0y,GPS0x,GPS1y);
-        if (((List.count()==1)||((Width>=WWidth)&&(Height>=WHeight)))&&(Width>=0.4)&&(Height>=0.4)) {
-            if (ApplicationConfig->DistanceUnit==cApplicationConfig::MILES) DistanceList.append(QString("Zoom %1: %2 miles x %3 miles").arg(i).arg(KMTOMILES(Width),0,'f',3).arg(KMTOMILES(Height),0,'f',3));
-                else                                                            DistanceList.append(QString("Zoom %1: %2 km x %3 km").arg(i).arg(Width,0,'f',3).arg(Height,0,'f',3));
-        } else DistanceList.append(QString());
-    }
-    return DistanceList;
-}
-
-QRectF cGMapsMap::GetPixRectF() {
-    QRectF  GPSRect=GetGPSRectF();
-    QRectF  PixRect;
-    PixRect.setLeft  (GPS2PIXEL_X(GPSRect.left(),  ZoomLevel,Scale));
-    PixRect.setRight (GPS2PIXEL_X(GPSRect.right(), ZoomLevel,Scale));
-    PixRect.setTop   (GPS2PIXEL_Y(GPSRect.top(),   ZoomLevel,Scale));
-    PixRect.setBottom(GPS2PIXEL_Y(GPSRect.bottom(),ZoomLevel,Scale));
-    return PixRect;
-}
-
-void cGMapsMap::ComputeSectionList() {
-    QSize   IMSize  =GetCurrentImageSize();
-    double  Map_Cx  =IMSize.width()/2;
-    double  Map_Cy  =IMSize.height()/2;
-    QRectF  PixRect =GetPixRectF();
-
-    MapCx=PixRect.center().x();
-    MapCy=PixRect.center().y();
-
-    RequestList.clear();
-
-    RequestSection Item;
-    for (int i=0;i<ComputeNbrSection(IMSize.height(),SectionHeight);i++) for (int j=0;j<ComputeNbrSection(IMSize.width(),SectionWith);j++) {
-        if (IMSize.height()<=SectionHeight) Item.Rect=QRectF(0,0,IMSize.width(),IMSize.height());
-            else                            Item.Rect=QRectF(SectionWith*j,SectionHeight*i,SectionWith,SectionHeight);
-        Item.GoogleRequest=QString("http://maps.googleapis.com/maps/api/staticmap?center=%1,%2&zoom=%3&size=640x640&scale=%4&maptype=%5&sensor=false")
-                .arg(PIXEL2GPS_Y((Item.Rect.center().y()-Map_Cy+MapCy),ZoomLevel,Scale))
-                .arg(PIXEL2GPS_X((Item.Rect.center().x()-Map_Cx+MapCx),ZoomLevel,Scale))
-                .arg(ZoomLevel).arg(Scale).arg(GetCurrentGoogleMapTypeName());
-        RequestList.append(Item);
-    }
-}
-
-//====================================================================================================================
-
-QPoint cGMapsMap::GetLocationPoint(int Index) {
-    QSize   IMSize  =GetCurrentImageSize();
-    double  Map_Cx  =IMSize.width()/2;
-    double  Map_Cy  =IMSize.height()/2;
-    QPoint  Ret(Map_Cx,Map_Cy);
-    if ((Index<0)||(Index>List.count())) return Ret;
-    Ret.setX(GPS2PIXEL_X(((cLocation *)List[Index])->GPS_cx,ZoomLevel,Scale)-MapCx+Map_Cx);
-    Ret.setY(GPS2PIXEL_Y(((cLocation *)List[Index])->GPS_cy,ZoomLevel,Scale)-MapCy+Map_Cy);
-    return Ret;
-}
-
-//====================================================================================================================
-
-QImage cGMapsMap::CreateDefaultImage(cDiaporama *Diaporama) {
-    // clear request list (delete any pending section)
-    RequestList.clear();
-
-    // Create a new ressource key
-    RessourceKey=-1;
-    //ApplicationConfig->ImagesCache.RemoveImageObject(RessourceKey,FileKey);   // remove object from Lulo if it exist
-
-    // create new empty image
-    QImage Image(GetCurrentImageSize(),QImage::Format_ARGB32_Premultiplied);
-    ImageWidth   =Image.width();
-    ImageHeight  =Image.height();
-    Image.fill(Qt::white);
-
-    // search if list contains Project's or Chapter's location
-    bool HaveLinkLoc=false;
-    for (int i=0;i<List.count();i++) if (((cLocation *)List[i])->LocationType!=cLocation::FREE) HaveLinkLoc=true;
-
-    if ((HaveLinkLoc)&&((!Diaporama)||(Diaporama->ProjectInfo->Location==NULL))) {
-        // add a message on the image if project location is empty
-        QPainter Painter;
-        Painter.begin(&Image);
-        QFont font= QApplication::font();
-        font.setPixelSize(double(Image.height())/double(20));
-        Painter.setFont(font);
-        if (!Diaporama) Painter.drawText(QRectF(0,0,Image.width(),Image.height()),
-                             Qt::AlignHCenter|Qt::AlignCenter|Qt::TextWordWrap,
-                             QApplication::translate("cBaseMediaFile","The map must be regenerated because the locations have changed or project's location no set"));
-            else        Painter.drawText(QRectF(0,0,Image.width(),Image.height()),
-                             Qt::AlignHCenter|Qt::AlignCenter|Qt::TextWordWrap,
-                             QApplication::translate("cBaseMediaFile","Project's location must be defined to produce this Google Maps map"));
-
-        Painter.end();
-    } else if (List.isEmpty()) {
-        // add a message on the image if location list is empty
-        QPainter Painter;
-        Painter.begin(&Image);
-        QFont font= QApplication::font();
-        font.setPixelSize(double(Image.height())/double(20));
-        Painter.setFont(font);
-        Painter.drawText(QRectF(0,0,Image.width(),Image.height()),
-                         Qt::AlignHCenter|Qt::AlignCenter|Qt::TextWordWrap,
-                         QApplication::translate("cBaseMediaFile","Select at least one location to produce Google Maps map"));
-        Painter.end();
-    }
-
-    // update ressource image in database
-    ApplicationConfig->SlideThumbsTable->SetThumbs(&RessourceKey,Image);
-
-    // return image
-    return Image;
-}
 
 /*************************************************************************************************************************************
     CLASS cVideoFile
@@ -1933,19 +1296,11 @@ cImageInCache::cImageInCache(int64_t Position,AVFrame *FiltFrame,AVFrame *FrameB
 }
 
 cImageInCache::~cImageInCache() {
-    #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-    if (FrameBufferYUV->opaque) {
-        avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-        FrameBufferYUV->opaque=NULL;
-    }
-    #else
     if (FiltFrame) {
         av_frame_unref(FiltFrame);
         av_frame_free(&FiltFrame);
-        //av_frame_unref(FrameBufferYUV);
     }
-    #endif
-    FREEFRAME(&FrameBufferYUV);
+    av_frame_free(&FrameBufferYUV);
 }
 
 //*************
@@ -1962,12 +1317,13 @@ void cVideoFile::Reset(OBJECTTYPE TheWantedObjectType) {
     IsOpen                  =false;
     StartPos                =QTime(0,0,0,0);   // Start position
     EndPos                  =QTime(0,0,0,0);   // End position
-    LibavStartTime          =0;
+    FFMPEGstartTime         =0;
 
     // Video part
     IsMTS                   =false;
-    LibavVideoFile          =NULL;
+    FFMPEGvideoFile         =NULL;
     VideoDecoderCodec       =NULL;
+    VideoDecoderCodecCtx    =NULL;
     VideoStreamNumber       =0;
     FrameBufferYUV          =NULL;
     FrameBufferYUVReady     =false;
@@ -1978,8 +1334,9 @@ void cVideoFile::Reset(OBJECTTYPE TheWantedObjectType) {
     NbrChapters             =0;
 
     // Audio part
-    LibavAudioFile          =NULL;
+    FFMPEGaudioFile         =NULL;
     AudioDecoderCodec       =NULL;
+    AudioDecoderCodecCtx    =NULL;
     LastAudioReadedPosition =-1;
     IsVorbis                =false;
     AudioCodecInfo          ="";
@@ -1992,10 +1349,8 @@ void cVideoFile::Reset(OBJECTTYPE TheWantedObjectType) {
     RSC_OutChannels         =2;
     RSC_InSampleRate        =48000;
     RSC_OutSampleRate       =48000;
-    #if (defined(LIBAV) && (LIBAVVERSIONINT>=9)) || defined(FFMPEG)
     RSC_InChannelLayout     =av_get_default_channel_layout(2);
     RSC_OutChannelLayout    =av_get_default_channel_layout(2);
-    #endif
     RSC_InSampleFmt         =AV_SAMPLE_FMT_S16;
     RSC_OutSampleFmt        =AV_SAMPLE_FMT_S16;
 
@@ -2037,7 +1392,7 @@ bool cVideoFile::DoAnalyseSound(QList<qreal> *Peak,QList<qreal> *Moyenne,bool *C
             *Analysed=qreal(NewPosition)/qreal(Duration);
             QApplication::processEvents();
             Position=NewPosition;
-            ReadFrame(true,Position*1000,true,false,&AnalyseMusic,1,true);
+            ReadFrame(true,Position*1000,true,false,&AnalyseMusic,1);
             NewPosition+=qreal(AnalyseMusic.ListCount())*AnalyseMusic.dDuration*qreal(1000);
             while (AnalyseMusic.ListCount()>0) {
                 Block=AnalyseMusic.DetachFirstPacket();
@@ -2102,7 +1457,7 @@ bool cVideoFile::DoAnalyseSound(QList<qreal> *Peak,QList<qreal> *Moyenne,bool *C
         // Compute MaxSoundValue as 90% of the max peak value
         QList<qreal> MaxVal;
         foreach (qreal Value,*Peak) MaxVal.append(Value);
-        qSort(MaxVal.begin(),MaxVal.end());
+        std::sort(MaxVal.begin(),MaxVal.end());
         qreal MaxSoundValue=MaxVal.count()>0?MaxVal[MaxVal.count()*0.9]:1;
         if( MaxSoundValue == 0 )
             MaxSoundValue = 1;
@@ -2114,7 +1469,7 @@ bool cVideoFile::DoAnalyseSound(QList<qreal> *Peak,QList<qreal> *Moyenne,bool *C
         }
         MaxVal.clear();
         foreach (qreal Value,*Moyenne) MaxVal.append(Value);
-        qSort(MaxVal.begin(),MaxVal.end());
+        std::sort(MaxVal.begin(),MaxVal.end());
         MaxSoundValue=MaxVal.count()>0?MaxVal[MaxVal.count()*0.9]:1;
 
         //**************************
@@ -2185,20 +1540,11 @@ bool cVideoFile::CheckFormatValide(QWidget *Window) {
 
     // check if file have at least one sound track compatible
     if ((IsOk)&&(AudioStreamNumber!=-1)) {
-        if (!((LibavAudioFile->streams[AudioStreamNumber]->codec->sample_fmt!=AV_SAMPLE_FMT_S16)||(LibavAudioFile->streams[AudioStreamNumber]->codec->sample_fmt!=AV_SAMPLE_FMT_U8))) {
+        if (!((FFMPEGaudioFile->streams[AudioStreamNumber]->codecpar->format!=AV_SAMPLE_FMT_S16)||(FFMPEGaudioFile->streams[AudioStreamNumber]->codecpar->format!=AV_SAMPLE_FMT_U8))) {
             QString ErrorMessage="\n"+QApplication::translate("MainWindow","This application support only audio track with unsigned 8 bits or signed 16 bits sample format","Error message");
             CustomMessageBox(Window,QMessageBox::Critical,QApplication::translate("MainWindow","Error","Error message"),ShortName()+"\n\n"+ErrorMessage,QMessageBox::Close);
             IsOk=false;
         }
-
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-        // check if sound is mono or stereo (libav 8 version can not reduce 5.1 to stereo)
-        if ((IsOk)&&(LibavAudioFile->streams[AudioStreamNumber]->codec->channels>2)) {
-            QString ErrorMessage="\n"+QApplication::translate("MainWindow","This application support only mono or stereo audio track","Error message");
-            CustomMessageBox(Window,QMessageBox::Critical,QApplication::translate("MainWindow","Error","Error message"),ShortName()+"\n\n"+ErrorMessage,QMessageBox::Close);
-            IsOk=false;
-        }
-        #endif
     }
 
     // Try to load an image to ensure all is ok
@@ -2228,9 +1574,8 @@ bool cVideoFile::CheckFormatValide(QWidget *Window) {
 //      return true if WantedObjectType=OBJECTTYPE_MUSICFILE and at least one audio track is present
 
 bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringList *ExtendedProperties) {
-    //Mutex.lock();
     bool            Continu=true;
-    AVFormatContext *LibavFile=NULL;
+    AVFormatContext *FFMPEGfile=NULL;
     QString         sFileName=FileName();
 
     //*********************************************************************************************************
@@ -2238,21 +1583,20 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
     //*********************************************************************************************************
     char filename[512];
     strcpy(filename,sFileName.toLocal8Bit());
-    if (avformat_open_input(&LibavFile,filename,NULL,NULL)!=0) {
-        LibavFile=NULL;
-        //Mutex.unlock();
+    if (avformat_open_input(&FFMPEGfile,filename,NULL,NULL)!=0) {
+        FFMPEGfile=NULL;
         return false;
     }
-    ExtendedProperties->append(QString("Short Format##")+QString(LibavFile->iformat->name));
-    ExtendedProperties->append(QString("Long Format##")+QString(LibavFile->iformat->long_name));
-    LibavFile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
+    ExtendedProperties->append(QString("Short Format##")+QString(FFMPEGfile->iformat->name));
+    ExtendedProperties->append(QString("Long Format##")+QString(FFMPEGfile->iformat->long_name));
+    FFMPEGfile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
 
     //*********************************************************************************************************
     // Search stream in file
     //*********************************************************************************************************
-    if (avformat_find_stream_info(LibavFile,NULL)<0) {
-        avformat_close_input(&LibavFile);
-        LibavFile=NULL;
+    if (avformat_find_stream_info(FFMPEGfile,NULL)<0) {
+        avformat_close_input(&FFMPEGfile);
+        FFMPEGfile=NULL;
         Continu=false;
     }
 
@@ -2261,11 +1605,8 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
         // Get metadata
         //*********************************************************************************************************
         AVDictionaryEntry *tag=NULL;
-        while ((tag=av_dict_get(LibavFile->metadata,"",tag,AV_DICT_IGNORE_SUFFIX))) {
+        while ((tag=av_dict_get(FFMPEGfile->metadata,"",tag,AV_DICT_IGNORE_SUFFIX))) {
             QString Value=QString().fromUtf8(tag->value);
-            #ifdef Q_OS_WIN
-            Value.replace(char(13),"\n");
-            #endif
             if (Value.endsWith("\n")) Value=Value.left(Value.lastIndexOf("\n"));
             ExtendedProperties->append(QString().fromUtf8(tag->key).toLower()+QString("##")+Value);
         }
@@ -2274,15 +1615,15 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
         // Get chapters
         //*********************************************************************************************************
         NbrChapters=0;
-        for (uint i=0;i<LibavFile->nb_chapters;i++) {
-            AVChapter   *ch=LibavFile->chapters[i];
+        for (uint i=0;i<FFMPEGfile->nb_chapters;i++) {
+            AVChapter   *ch=FFMPEGfile->chapters[i];
             QString     ChapterNum=QString("%1").arg(NbrChapters);
             while (ChapterNum.length()<3) ChapterNum="0"+ChapterNum;
             int64_t Start=double(ch->start)*(double(av_q2d(ch->time_base))*1000);     // Lib AV use 1/1 000 000 000 sec and we want msec !
             int64_t End  =double(ch->end)*(double(av_q2d(ch->time_base))*1000);       // Lib AV use 1/1 000 000 000 sec and we want msec !
 
             // Special case if it's first chapter and start!=0 => add a chapter 0
-            if ((NbrChapters==0)&&(LibavFile->chapters[i]->start>0)) {
+            if ((NbrChapters==0)&&(FFMPEGfile->chapters[i]->start>0)) {
                 ExtendedProperties->append("Chapter_"+ChapterNum+":Start"   +QString("##")+QTime(0,0,0,0).toString("hh:mm:ss.zzz"));
                 ExtendedProperties->append("Chapter_"+ChapterNum+":End"     +QString("##")+QTime(0,0,0,0).addMSecs(Start).toString("hh:mm:ss.zzz"));
                 ExtendedProperties->append("Chapter_"+ChapterNum+":Duration"+QString("##")+QTime(0,0,0,0).addMSecs(Start).toString("hh:mm:ss.zzz"));
@@ -2306,7 +1647,7 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
         //*********************************************************************************************************
         // Get information about duration
         //*********************************************************************************************************
-        int64_t ms=LibavFile->duration/1000;
+        int64_t ms=FFMPEGfile->duration/1000;
         int     ss=ms/1000;
         int     mm=ss/60;
         int     hh=mm/60;
@@ -2319,15 +1660,17 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
         //*********************************************************************************************************
         // Get information from track
         //*********************************************************************************************************
-        for (int Track=0;Track<(int)LibavFile->nb_streams;Track++) {
+        for (int Track=0;Track<(int)FFMPEGfile->nb_streams;Track++) {
 
             // Find codec
-            AVCodec *Codec=avcodec_find_decoder(LibavFile->streams[Track]->codec->codec_id);
+            const AVCodec *Codec=avcodec_find_decoder(FFMPEGfile->streams[Track]->codecpar->codec_id);
+            AVCodecContext *CodecCtx=avcodec_alloc_context3(Codec);
+            avcodec_parameters_to_context(CodecCtx,FFMPEGfile->streams[Track]->codecpar);
 
             //*********************************************************************************************************
             // Audio track
             //*********************************************************************************************************
-            if (LibavFile->streams[Track]->codec->codec_type==AVMEDIA_TYPE_AUDIO) {
+            if (CodecCtx->codec_type==AVMEDIA_TYPE_AUDIO) {
                 // Keep this as default track
                 if (AudioStreamNumber==-1) AudioStreamNumber=Track;
 
@@ -2342,7 +1685,7 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
 
                 // Channels and Sample format
                 QString SampleFMT="";
-                switch (LibavFile->streams[Track]->codec->sample_fmt) {
+                switch (CodecCtx->sample_fmt) {
                     case AV_SAMPLE_FMT_U8  : SampleFMT="-U8";   ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"unsigned 8 bits");          break;
                     case AV_SAMPLE_FMT_S16 : SampleFMT="-S16";  ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"signed 16 bits");           break;
                     case AV_SAMPLE_FMT_S32 : SampleFMT="-S32";  ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"signed 32 bits");           break;
@@ -2355,22 +1698,22 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
                     case AV_SAMPLE_FMT_DBLP: SampleFMT="-DBLP"; ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"double, planar");           break;
                     default                : SampleFMT="-?";    ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"Unknown");                  break;
                 }
-                if (LibavFile->streams[Track]->codec->channels==1)      ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Mono","Audio channels mode")+SampleFMT);
-                else if (LibavFile->streams[Track]->codec->channels==2) ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Stereo","Audio channels mode")+SampleFMT);
-                else                                                    ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QString("%1").arg(LibavFile->streams[Track]->codec->channels)+SampleFMT);
+                if (CodecCtx->channels==1)      ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Mono","Audio channels mode")+SampleFMT);
+                else if (CodecCtx->channels==2) ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Stereo","Audio channels mode")+SampleFMT);
+                else                                                    ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QString("%1").arg(CodecCtx->channels)+SampleFMT);
 
                 // Frequency
-                if (int(LibavFile->streams[Track]->codec->sample_rate/1000)*1000>0) {
-                    if (int(LibavFile->streams[Track]->codec->sample_rate/1000)*1000==LibavFile->streams[Track]->codec->sample_rate)
-                         ExtendedProperties->append(TrackNum+QString("Frequency")+QString("##")+QString("%1").arg(int(LibavFile->streams[Track]->codec->sample_rate/1000))+"Khz");
-                    else ExtendedProperties->append(TrackNum+QString("Frequency")+QString("##")+QString("%1").arg(double(LibavFile->streams[Track]->codec->sample_rate)/1000,8,'f',1).trimmed()+"Khz");
+                if (int(CodecCtx->sample_rate/1000)*1000>0) {
+                    if (int(CodecCtx->sample_rate/1000)*1000==CodecCtx->sample_rate)
+                         ExtendedProperties->append(TrackNum+QString("Frequency")+QString("##")+QString("%1").arg(int(CodecCtx->sample_rate/1000))+"Khz");
+                    else ExtendedProperties->append(TrackNum+QString("Frequency")+QString("##")+QString("%1").arg(double(CodecCtx->sample_rate)/1000,8,'f',1).trimmed()+"Khz");
                 }
 
                 // Bitrate
-                if (int(LibavFile->streams[Track]->codec->bit_rate/1000)>0) ExtendedProperties->append(TrackNum+QString("Bitrate")+QString("##")+QString("%1").arg(int(LibavFile->streams[Track]->codec->bit_rate/1000))+"Kb/s");
+                if (int(CodecCtx->bit_rate/1000)>0) ExtendedProperties->append(TrackNum+QString("Bitrate")+QString("##")+QString("%1").arg(int(CodecCtx->bit_rate/1000))+"Kb/s");
 
                 // Stream metadata
-                while ((tag=av_dict_get(LibavFile->streams[Track]->metadata,"",tag,AV_DICT_IGNORE_SUFFIX))) {
+                while ((tag=av_dict_get(FFMPEGfile->streams[Track]->metadata,"",tag,AV_DICT_IGNORE_SUFFIX))) {
                     // OGV container affect TAG to audio stream !
                     QString Key=QString().fromUtf8(tag->key).toLower();
                     if ((sFileName.toLower().endsWith(".ogv"))&&((Key=="title")||(Key=="artist")||(Key=="album")||(Key=="comment")||(Key=="date")||(Key=="composer")||(Key=="encoder")))
@@ -2390,7 +1733,7 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
             //*********************************************************************************************************
             // Video track
             //*********************************************************************************************************
-            } else if (!MusicOnly && (LibavFile->streams[Track]->codec->codec_type==AVMEDIA_TYPE_VIDEO)) {
+            } else if (!MusicOnly && (CodecCtx->codec_type==AVMEDIA_TYPE_VIDEO)) {
                 // Compute TrackNum
                 QString TrackNum=QString("%1").arg(VideoTrackNbr);
                 while (TrackNum.length()<3) TrackNum="0"+TrackNum;
@@ -2401,17 +1744,17 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
                 if (Codec) ExtendedProperties->append(TrackNum+QString("Codec")+QString("##")+QString(Codec->name));
 
                 // Bitrate
-                if (LibavFile->streams[Track]->codec->bit_rate>0) ExtendedProperties->append(TrackNum+QString("Bitrate")+QString("##")+QString("%1").arg(int(LibavFile->streams[Track]->codec->bit_rate/1000))+"Kb/s");
+                if (CodecCtx->bit_rate>0) ExtendedProperties->append(TrackNum+QString("Bitrate")+QString("##")+QString("%1").arg(int(CodecCtx->bit_rate/1000))+"Kb/s");
 
                 // Frame rate
-                if (int(double(LibavFile->streams[Track]->avg_frame_rate.num)/double(LibavFile->streams[Track]->avg_frame_rate.den))>0) {
-                    if (int(double(LibavFile->streams[Track]->avg_frame_rate.num)/double(LibavFile->streams[Track]->avg_frame_rate.den))==double(LibavFile->streams[Track]->avg_frame_rate.num)/double(LibavFile->streams[Track]->avg_frame_rate.den))
-                         ExtendedProperties->append(TrackNum+QString("Frame rate")+QString("##")+QString("%1").arg(int(double(LibavFile->streams[Track]->avg_frame_rate.num)/double(LibavFile->streams[Track]->avg_frame_rate.den)))+" FPS");
-                    else ExtendedProperties->append(TrackNum+QString("Frame rate")+QString("##")+QString("%1").arg(double(double(LibavFile->streams[Track]->avg_frame_rate.num)/double(LibavFile->streams[Track]->avg_frame_rate.den)),8,'f',3).trimmed()+" FPS");
+                if (int(double(FFMPEGfile->streams[Track]->avg_frame_rate.num)/double(FFMPEGfile->streams[Track]->avg_frame_rate.den))>0) {
+                    if (int(double(FFMPEGfile->streams[Track]->avg_frame_rate.num)/double(FFMPEGfile->streams[Track]->avg_frame_rate.den))==double(FFMPEGfile->streams[Track]->avg_frame_rate.num)/double(FFMPEGfile->streams[Track]->avg_frame_rate.den))
+                         ExtendedProperties->append(TrackNum+QString("Frame rate")+QString("##")+QString("%1").arg(int(double(FFMPEGfile->streams[Track]->avg_frame_rate.num)/double(FFMPEGfile->streams[Track]->avg_frame_rate.den)))+" FPS");
+                    else ExtendedProperties->append(TrackNum+QString("Frame rate")+QString("##")+QString("%1").arg(double(double(FFMPEGfile->streams[Track]->avg_frame_rate.num)/double(FFMPEGfile->streams[Track]->avg_frame_rate.den)),8,'f',3).trimmed()+" FPS");
                 }
 
                 // Stream metadata
-                while ((tag=av_dict_get(LibavFile->streams[Track]->metadata,"",tag,AV_DICT_IGNORE_SUFFIX)))
+                while ((tag=av_dict_get(FFMPEGfile->streams[Track]->metadata,"",tag,AV_DICT_IGNORE_SUFFIX)))
                     ExtendedProperties->append(TrackNum+QString(tag->key)+QString("##")+QString().fromUtf8(tag->value));
 
                 // Ensure language exist (Note : AVI ‘AttachedPictureFrame’and FLV container own language at container level instead of track level)
@@ -2433,67 +1776,65 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
 
                     VideoStreamNumber=Track;
                     IsMTS=(sFileName.toLower().endsWith(".mts",Qt::CaseInsensitive) || sFileName.toLower().endsWith(".m2ts",Qt::CaseInsensitive) || sFileName.toLower().endsWith(".mod",Qt::CaseInsensitive));
-                    LibavFile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
-                    LibavFile->streams[VideoStreamNumber]->discard=AVDISCARD_DEFAULT;  // Setup STREAM options
+                    FFMPEGfile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
+                    FFMPEGfile->streams[VideoStreamNumber]->discard=AVDISCARD_DEFAULT;  // Setup STREAM options
 
                     // Setup decoder options
-                    LibavFile->streams[VideoStreamNumber]->codec->debug            =0;                    // Debug level (0=nothing)
-                    LibavFile->streams[VideoStreamNumber]->codec->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
-                    LibavFile->streams[VideoStreamNumber]->codec->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
-                    LibavFile->streams[VideoStreamNumber]->codec->skip_frame       =AVDISCARD_DEFAULT;    // ???????
-                    LibavFile->streams[VideoStreamNumber]->codec->skip_idct        =AVDISCARD_DEFAULT;    // ???????
-                    LibavFile->streams[VideoStreamNumber]->codec->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
-                    LibavFile->streams[VideoStreamNumber]->codec->error_concealment=3;
-                    LibavFile->streams[VideoStreamNumber]->codec->thread_count     =getCpuCount();
-                    LibavFile->streams[VideoStreamNumber]->codec->thread_type      =getThreadFlags(LibavFile->streams[VideoStreamNumber]->codec->codec_id);
+                    CodecCtx->debug            =0;                    // Debug level (0=nothing)
+                    CodecCtx->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
+                    CodecCtx->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
+                    CodecCtx->skip_frame       =AVDISCARD_DEFAULT;    // ???????
+                    CodecCtx->skip_idct        =AVDISCARD_DEFAULT;    // ???????
+                    CodecCtx->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
+                    CodecCtx->error_concealment=3;
+                    CodecCtx->thread_count     =getCpuCount();
+                    CodecCtx->thread_type      =getThreadFlags(CodecCtx->codec_id);
 
                     // Hack to correct wrong frame rates that seem to be generated by some codecs
-                    if (LibavFile->streams[VideoStreamNumber]->codec->time_base.num>1000 && LibavFile->streams[VideoStreamNumber]->codec->time_base.den==1) LibavFile->streams[VideoStreamNumber]->codec->time_base.den=1000;
+                    if (CodecCtx->time_base.num>1000 && CodecCtx->time_base.den==1) CodecCtx->time_base.den=1000;
 
-                    if (avcodec_open2(LibavFile->streams[VideoStreamNumber]->codec,Codec,NULL)>=0) {
+                    if (avcodec_open2(CodecCtx,Codec,NULL)>=0) {
                         // Get Aspect Ratio
 
-                        if (LibavFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.num!=0)
-                            AspectRatio=double(LibavFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.num)/double(LibavFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.den);
-                        else if (LibavFile->streams[VideoStreamNumber]->sample_aspect_ratio.num!=0)
-                            AspectRatio=double(LibavFile->streams[VideoStreamNumber]->sample_aspect_ratio.num)/double(LibavFile->streams[VideoStreamNumber]->sample_aspect_ratio.den);
+                        if (CodecCtx->sample_aspect_ratio.num!=0)
+                            AspectRatio=double(CodecCtx->sample_aspect_ratio.num)/double(CodecCtx->sample_aspect_ratio.den);
+                        else if (FFMPEGfile->streams[VideoStreamNumber]->sample_aspect_ratio.num!=0)
+                            AspectRatio=double(FFMPEGfile->streams[VideoStreamNumber]->sample_aspect_ratio.num)/double(FFMPEGfile->streams[VideoStreamNumber]->sample_aspect_ratio.den);
                         else
                             AspectRatio=1;
 
                         // Special case for DVD mode video without PAR
-                        if ((AspectRatio==1)&&(LibavFile->streams[VideoStreamNumber]->codec->coded_width==720)&&((LibavFile->streams[VideoStreamNumber]->codec->coded_height==576)||(LibavFile->streams[VideoStreamNumber]->codec->coded_height==480)))
-                            AspectRatio=double((LibavFile->streams[VideoStreamNumber]->codec->coded_height/3)*4)/720;
+                        if ((AspectRatio==1)&&(CodecCtx->coded_width==720)&&((CodecCtx->coded_height==576)||(CodecCtx->coded_height==480)))
+                            AspectRatio=double((CodecCtx->coded_height/3)*4)/720;
 
-                        // Try to load one image to be sure we can make something with this file
-                        // and use this first image as thumbnail (if no jukebox thumbnail)
+                        // Try to load one image of the file to be sure we can make something with this file
+                        // and use this image as thumbnail
                         int64_t   Position =0;
                         double    dEndFile =double(QTime(0,0,0,0).msecsTo(GetRealDuration()))/1000;    // End File Position in double format
                         if (dEndFile!=0) {
                             // Allocate structure for YUV image
 
-                            FrameBufYUV=ALLOCFRAME();
+                            FrameBufYUV=av_frame_alloc();
 
                             if (FrameBufYUV!=NULL) {
 
-                                AVStream    *VideoStream    =LibavFile->streams[VideoStreamNumber];
+                                AVStream    *VideoStream    =FFMPEGfile->streams[VideoStreamNumber];
                                 AVPacket    *StreamPacket   =NULL;
                                 bool        Continue        =true;
                                 bool        IsVideoFind     =false;
                                 double      FrameTimeBase   =av_q2d(VideoStream->time_base);
                                 double      FramePosition   =0;
-
+                                
                                 while (Continue) {
-                                    StreamPacket=new AVPacket();
-                                    av_init_packet(StreamPacket);
+                                    StreamPacket=av_packet_alloc();
                                     StreamPacket->flags|=AV_PKT_FLAG_KEY;  // HACK for CorePNG to decode as normal PNG by default
-                                    if (av_read_frame(LibavFile,StreamPacket)==0) {
+                                    if (av_read_frame(FFMPEGfile,StreamPacket)==0) {
                                         if (StreamPacket->stream_index==VideoStreamNumber) {
-                                            int FrameDecoded=0;
-                                            if (avcodec_decode_video2(VideoStream->codec,FrameBufYUV,&FrameDecoded,StreamPacket)<0)
-                                                ToLog(LOGMSG_INFORMATION,"IN:cVideoFile::OpenCodecAndFile : avcodec_decode_video2 return an error");
-                                            if (FrameDecoded>0) {
+                                            if (avcodec_send_packet(CodecCtx, StreamPacket)<0)
+                                                ToLog(LOGMSG_INFORMATION,"IN:cVideoFile::OpenCodecAndFile : avcodec_send_packet return an error");
+                                            if (avcodec_receive_frame(CodecCtx, FrameBufYUV)>=0) {
                                                 int64_t pts=AV_NOPTS_VALUE;
-                                                if ((FrameBufYUV->pkt_dts==(int64_t)AV_NOPTS_VALUE)&&(FrameBufYUV->pkt_pts!=(int64_t)AV_NOPTS_VALUE)) pts=FrameBufYUV->pkt_pts; else pts=FrameBufYUV->pkt_dts;
+                                                if ((FrameBufYUV->pkt_dts==(int64_t)AV_NOPTS_VALUE)&&(FrameBufYUV->pts!=(int64_t)AV_NOPTS_VALUE)) pts=FrameBufYUV->pts; else pts=FrameBufYUV->pkt_dts;
                                                 if (pts==(int64_t)AV_NOPTS_VALUE) pts=0;
                                                 FramePosition         =double(pts)*FrameTimeBase;
                                                 Img                   =ConvertYUVToRGB(false,FrameBufYUV);      // Create Img from YUV Buffer
@@ -2509,17 +1850,17 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
                                     }
                                     // Continue with a new one
                                     if (StreamPacket!=NULL) {
-                                        av_free_packet(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
+                                        av_packet_unref(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
                                         delete StreamPacket;
                                         StreamPacket=NULL;
                                     }
                                 }
                                 if ((!IsVideoFind)&&(!Img)) {
                                     ToLog(LOGMSG_CRITICAL,QString("No video image return for position %1 => return black frame").arg(Position));
-                                    Img=new QImage(LibavFile->streams[VideoStreamNumber]->codec->width,LibavFile->streams[VideoStreamNumber]->codec->height,QImage::Format_ARGB32_Premultiplied);
+                                    Img=new QImage(CodecCtx->width,CodecCtx->height,QImage::Format_ARGB32_Premultiplied);
                                     Img->fill(0);
                                 }
-                                FREEFRAME(&FrameBufYUV);
+                                av_frame_free(&FrameBufYUV);
 
                             } else ToLog(LOGMSG_CRITICAL,"Error in cVideoFile::OpenCodecAndFile : Impossible to allocate FrameBufYUV");
                         } else ToLog(LOGMSG_CRITICAL,"Error in cVideoFile::OpenCodecAndFile : dEndFile=0 ?????");
@@ -2561,87 +1902,74 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
 
             }
 
-            // Close the video codec
-            if (Codec!=NULL) {
-                avcodec_close(LibavFile->streams[Track]->codec);
-                Codec=NULL;
-            }
+            // Free the codec context
+            avcodec_free_context(&CodecCtx);
 
             //*********************************************************************************************************
             // Thumbnails (since lavf 54.2.0 - avformat.h)
             //*********************************************************************************************************
-            #ifndef USETAGLIB
-            if (LibavFile->streams[Track]->disposition & AV_DISPOSITION_ATTACHED_PIC) {
-                AVStream *ThumbStream=LibavFile->streams[Track];
+            if (FFMPEGfile->streams[Track]->disposition & AV_DISPOSITION_ATTACHED_PIC) {
+                AVStream *ThumbStream=FFMPEGfile->streams[Track];
                 AVPacket pkt         =ThumbStream->attached_pic;
-                int      FrameDecoded=0;
-                AVFrame  *FrameYUV=ALLOCFRAME();
+                AVFrame  *FrameYUV=av_frame_alloc();
                 if (FrameYUV) {
 
-                    AVCodec *ThumbDecoderCodec=avcodec_find_decoder(ThumbStream->codec->codec_id);
+                    Codec=avcodec_find_decoder(ThumbStream->codecpar->codec_id);
+                    CodecCtx=avcodec_alloc_context3(Codec);
+                    avcodec_parameters_to_context(CodecCtx,ThumbStream->codecpar);
 
                     // Setup decoder options
-                    ThumbStream->codec->debug            =0;                    // Debug level (0=nothing)
-                    ThumbStream->codec->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
-                    ThumbStream->codec->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
-                    ThumbStream->codec->skip_frame       =AVDISCARD_DEFAULT;    // ???????
-                    ThumbStream->codec->skip_idct        =AVDISCARD_DEFAULT;    // ???????
-                    ThumbStream->codec->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
-                    ThumbStream->codec->error_concealment=3;
-                    ThumbStream->codec->thread_count     =getCpuCount();
-                    ThumbStream->codec->thread_type      =getThreadFlags(ThumbStream->codec->codec_id);
-                    if (avcodec_open2(ThumbStream->codec,ThumbDecoderCodec,NULL)>=0) {
-                        if ((avcodec_decode_video2(ThumbStream->codec,FrameYUV,&FrameDecoded,&pkt)>=0)&&(FrameDecoded>0)) {
-                            int     W=FrameYUV->width, RealW=(W/8)*8;    if (RealW<W) RealW+=8;
-                            int     H=FrameYUV->height,RealH=(H/8)*8;    if (RealH<H) RealH+=8;;
-                            QImage  Thumbnail(RealW,RealH,QTPIXFMT);
-                            AVFrame *FrameRGB=ALLOCFRAME();
-                            if ((FrameRGB)&&(!Thumbnail.isNull())) {
-                                avpicture_fill((AVPicture *)FrameRGB,Thumbnail.bits(),PIXFMT,RealW,RealH);
-                                struct SwsContext *img_convert_ctx=sws_getContext(FrameYUV->width,FrameYUV->height,(AVPixelFormat)FrameYUV->format,RealW,RealH,PIXFMT,SWS_FAST_BILINEAR,NULL,NULL,NULL);
-                                if (img_convert_ctx!=NULL) {
-                                    int ret = sws_scale(img_convert_ctx,FrameYUV->data,FrameYUV->linesize,0,FrameYUV->height,FrameRGB->data,FrameRGB->linesize);
-                                    if (ret>0) {
-                                        // sws_scaler truncate the width of the images to a multiple of 8. So cut resulting image to comply a multiple of 8
-                                        Thumbnail=Thumbnail.copy(0,0,W,H);
-                                        Icon->LoadIcons(&Thumbnail);
+                    CodecCtx->debug            =0;                    // Debug level (0=nothing)
+                    CodecCtx->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
+                    CodecCtx->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
+                    CodecCtx->skip_frame       =AVDISCARD_DEFAULT;    // ???????
+                    CodecCtx->skip_idct        =AVDISCARD_DEFAULT;    // ???????
+                    CodecCtx->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
+                    CodecCtx->error_concealment=3;
+                    CodecCtx->thread_count     =getCpuCount();
+                    CodecCtx->thread_type      =getThreadFlags(ThumbStream->codecpar->codec_id);
+                    if (avcodec_open2(CodecCtx,Codec,NULL)>=0) {
+                        if (avcodec_send_packet(CodecCtx, &pkt)>=0) {
+                            if (avcodec_receive_frame(CodecCtx, FrameYUV)>=0) {
+                                int     W=FrameYUV->width, RealW=(W/8)*8;    if (RealW<W) RealW+=8;
+                                int     H=FrameYUV->height,RealH=(H/8)*8;    if (RealH<H) RealH+=8;;
+                                
+                                QImage  Thumbnail(RealW,RealH,QTPIXFMT);
+                                AVFrame *FrameRGB=av_frame_alloc();
+                                if ((FrameRGB)&&(!Thumbnail.isNull())) {
+                                    av_image_fill_arrays(FrameRGB->data,FrameRGB->linesize,Thumbnail.bits(),PIXFMT,RealW,RealH,1);
+                                    struct SwsContext *img_convert_ctx=sws_getContext(FrameYUV->width,FrameYUV->height,(AVPixelFormat)FrameYUV->format,RealW,RealH,PIXFMT,SWS_FAST_BILINEAR,NULL,NULL,NULL);
+                                    if (img_convert_ctx!=NULL) {
+                                        int ret = sws_scale(img_convert_ctx,FrameYUV->data,FrameYUV->linesize,0,FrameYUV->height,FrameRGB->data,FrameRGB->linesize);
+                                        if (ret>0) {
+                                            // sws_scaler truncate the width of the images to a multiple of 8. So cut resulting image to comply a multiple of 8
+                                            Thumbnail=Thumbnail.copy(0,0,W,H);
+                                            Icon->LoadIcons(&Thumbnail);
+                                        }
+                                        sws_freeContext(img_convert_ctx);
                                     }
-                                    sws_freeContext(img_convert_ctx);
                                 }
+                                if (FrameRGB) av_frame_free(&FrameRGB);
                             }
-                            if (FrameRGB) FREEFRAME(&FrameRGB);
                         }
-                        avcodec_close(ThumbStream->codec);
                     }
+                    avcodec_free_context(&CodecCtx);
                 }
-                if (FrameYUV) FREEFRAME(&FrameYUV);
-            }
-            #endif
-        }
-
-        #ifdef USETAGLIB
-        // If it's an audio file, try to get embeded image with taglib
-        if ((Icon->Icon16.isNull() || Icon->Icon100.isNull())&&(ObjectType==OBJECTTYPE_MUSICFILE)) {
-            QImage *Img=GetEmbededImage(sFileName);
-            if (Img) {
-                Icon->LoadIcons(Img);
-                delete Img;
+                if (FrameYUV) av_frame_free(&FrameYUV);
             }
         }
-        #endif
 
         // if no icon then load default for type
         if (Icon->Icon16.isNull() || Icon->Icon100.isNull())
             Icon->LoadIcons(ObjectType==OBJECTTYPE_VIDEOFILE?&ApplicationConfig->DefaultVIDEOIcon:&ApplicationConfig->DefaultMUSICIcon);
     }
 
-    // Close the libav file
-    if (LibavFile!=NULL) {
-        avformat_close_input(&LibavFile);
-        LibavFile=NULL;
+    // Close the ffmpeg file
+    if (FFMPEGfile!=NULL) {
+        avformat_close_input(&FFMPEGfile);
+        FFMPEGfile=NULL;
     }
 
-    //Mutex.unlock();
     return Continu;
 }
 
@@ -2715,8 +2043,6 @@ QString cVideoFile::GetTAGInfo(QStringList *ExtendedProperties) {
 //====================================================================================================================
 
 void cVideoFile::CloseCodecAndFile() {
-    //Mutex.lock();
-
     while (CacheImage.count()>0) delete(CacheImage.takeLast());
 
     // Close the resampling context
@@ -2726,77 +2052,55 @@ void cVideoFile::CloseCodecAndFile() {
     if (VideoFilterGraph)
         VideoFilter_Close();
 
-    // Close the video codec
-    if (VideoDecoderCodec!=NULL) {
-        avcodec_close(LibavVideoFile->streams[VideoStreamNumber]->codec);
+    // Close the video codec context
+    if (VideoDecoderCodecCtx!=NULL) {
+        avcodec_free_context(&VideoDecoderCodecCtx);
         VideoDecoderCodec=NULL;
     }
 
     // Close the audio codec
-    if (AudioDecoderCodec!=NULL) {
-        avcodec_close(LibavAudioFile->streams[AudioStreamNumber]->codec);
+    if (AudioDecoderCodecCtx!=NULL) {
+        avcodec_free_context(&AudioDecoderCodecCtx);
         AudioDecoderCodec=NULL;
     }
 
-    // Close the libav files
-    if (LibavAudioFile!=NULL) {
-        avformat_close_input(&LibavAudioFile);
-        LibavAudioFile=NULL;
+    // Close the ffmpeg files
+    if (FFMPEGaudioFile!=NULL) {
+        avformat_close_input(&FFMPEGaudioFile);
+        FFMPEGaudioFile=NULL;
     }
-    if (LibavVideoFile!=NULL) {
-        avformat_close_input(&LibavVideoFile);
-        LibavVideoFile=NULL;
+    if (FFMPEGvideoFile!=NULL) {
+        avformat_close_input(&FFMPEGvideoFile);
+        FFMPEGvideoFile=NULL;
     }
 
     if (FrameBufferYUV!=NULL) {
-        #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-        if (FrameBufferYUV->opaque) {
-            avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-            FrameBufferYUV->opaque=NULL;
-        }
-        #endif
-        FREEFRAME(&FrameBufferYUV);
+        av_frame_free(&FrameBufferYUV);
     }
     FrameBufferYUVReady=false;
 
     IsOpen=false;
-    //Mutex.unlock();
 }
 
 //*********************************************************************************************************************
 
 void cVideoFile::CloseResampler() {
     if (RSC) {
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            audio_resample_close(RSC);
-        #elif defined(LIBAV)
-            avresample_close(RSC);
-            avresample_free(&RSC);
-        #elif defined(FFMPEG)
-            swr_free(&RSC);
-        #endif
+        swr_free(&RSC);
         RSC=NULL;
     }
 }
 
 //*********************************************************************************************************************
 
-void cVideoFile::CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleFormat RSC_InSampleFmt,AVSampleFormat RSC_OutSampleFmt,int RSC_InSampleRate,int RSC_OutSampleRate
-                                            #if (defined(LIBAV)&&(LIBAVVERSIONINT>=9)) || defined(FFMPEG)
-                                               ,uint64_t RSC_InChannelLayout,uint64_t RSC_OutChannelLayout
-                                           #endif
-                                      ) {
-    #if (defined(LIBAV) && (LIBAVVERSIONINT>=9)) || defined(FFMPEG)
+void cVideoFile::CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleFormat RSC_InSampleFmt,AVSampleFormat RSC_OutSampleFmt,int RSC_InSampleRate,int RSC_OutSampleRate,uint64_t RSC_InChannelLayout,uint64_t RSC_OutChannelLayout) {
     if (RSC_InChannelLayout==0)  RSC_InChannelLayout =av_get_default_channel_layout(RSC_InChannels);
     if (RSC_OutChannelLayout==0) RSC_OutChannelLayout=av_get_default_channel_layout(RSC_OutChannels);
-    #endif
     if ((RSC!=NULL)&&
         ( (RSC_InChannels!=this->RSC_InChannels)    ||(RSC_OutChannels!=this->RSC_OutChannels)
         ||(RSC_InSampleFmt!=this->RSC_InSampleFmt)  ||(RSC_OutSampleFmt!=this->RSC_OutSampleFmt)
         ||(RSC_InSampleRate!=this->RSC_InSampleRate)||(RSC_OutSampleRate!=this->RSC_OutSampleRate)
-        #if (defined(LIBAV) && (LIBAVVERSIONINT>=9)) || defined(FFMPEG)
         ||(RSC_InChannelLayout!=this->RSC_InChannelLayout)||(RSC_OutChannelLayout!=this->RSC_OutChannelLayout)
-        #endif
        )) CloseResampler();
     if (!RSC) {
         this->RSC_InChannels   =RSC_InChannels;
@@ -2805,57 +2109,23 @@ void cVideoFile::CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleF
         this->RSC_OutSampleFmt =RSC_OutSampleFmt;
         this->RSC_InSampleRate =RSC_InSampleRate;
         this->RSC_OutSampleRate=RSC_OutSampleRate;
-
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            RSC=av_audio_resample_init(    // Context for resampling audio data
-                RSC_OutChannels,RSC_InChannels,             // output_channels, input_channels
-                RSC_OutSampleRate,RSC_InSampleRate,         // output_rate, input_rate
-                RSC_OutSampleFmt,RSC_InSampleFmt,           // sample_fmt_out, sample_fmt_in
-                0,                                          // filter_length
-                0,                                          // log2_phase_count
-                1,                                          // linear
-                0);                                         // cutoff
-            if (!RSC) ToLog(LOGMSG_CRITICAL,QString("CheckResampler: av_audio_resample_init failed"));
-        #elif defined(LIBAV)
-            this->RSC_InChannelLayout =RSC_InChannelLayout;
-            this->RSC_OutChannelLayout=RSC_OutChannelLayout;
-            RSC=avresample_alloc_context();
-            if (RSC) {
-                av_opt_set_int(RSC,"in_channel_layout",     RSC_InChannelLayout, 0);
-                av_opt_set_int(RSC,"in_sample_rate",        RSC_InSampleRate,    0);
-                av_opt_set_int(RSC,"out_channel_layout",    RSC_OutChannelLayout,0);
-                av_opt_set_int(RSC,"out_sample_rate",       RSC_OutSampleRate,   0);
-                av_opt_set_int(RSC,"in_sample_fmt",         RSC_InSampleFmt,     0);
-                av_opt_set_int(RSC,"out_sample_fmt",        RSC_OutSampleFmt,    0);
-                if (avresample_open(RSC)<0) {
-                    ToLog(LOGMSG_CRITICAL,QString("CheckResampler: avresample_open failed"));
-                    avresample_free(&RSC);
-                    RSC=NULL;
-                }
-            }
-            if (!RSC) ToLog(LOGMSG_CRITICAL,QString("CheckResampler: avresample_alloc_context failed"));
-        #elif defined(FFMPEG)
-            this->RSC_InChannelLayout =RSC_InChannelLayout;
-            this->RSC_OutChannelLayout=RSC_OutChannelLayout;
-            /*RSC=swr_alloc_set_opts(NULL,RSC_OutChannelLayout,RSC_OutSampleFmt,RSC_OutSampleRate,
-                                        RSC_InChannelLayout, RSC_InSampleFmt, RSC_InSampleRate,
-                                        0, NULL);*/
-            RSC=swr_alloc();
-            av_opt_set_int(RSC,"in_channel_layout",     RSC_InChannelLayout, 0);
-            av_opt_set_int(RSC,"in_sample_rate",        RSC_InSampleRate,    0);
-            av_opt_set_int(RSC,"out_channel_layout",    RSC_OutChannelLayout,0);
-            av_opt_set_int(RSC,"out_sample_rate",       RSC_OutSampleRate,   0);
-            av_opt_set_int(RSC,"in_channel_count",      RSC_InChannels,      0);
-            av_opt_set_int(RSC,"out_channel_count",     RSC_OutChannels,     0);
-            av_opt_set_sample_fmt(RSC,"in_sample_fmt",  RSC_InSampleFmt,     0);
-            av_opt_set_sample_fmt(RSC,"out_sample_fmt", RSC_OutSampleFmt,    0);
-            if ((RSC)&&(swr_init(RSC)<0)) {
-                ToLog(LOGMSG_CRITICAL,QString("CheckResampler: swr_init failed"));
-                swr_free(&RSC);
-                RSC=NULL;
-            }
-            if (!RSC) ToLog(LOGMSG_CRITICAL,QString("CheckResampler: swr_alloc_set_opts failed"));
-        #endif
+        this->RSC_InChannelLayout =RSC_InChannelLayout;
+        this->RSC_OutChannelLayout=RSC_OutChannelLayout;
+        RSC=swr_alloc();
+        av_opt_set_int(RSC,"in_channel_layout",     RSC_InChannelLayout, 0);
+        av_opt_set_int(RSC,"in_sample_rate",        RSC_InSampleRate,    0);
+        av_opt_set_int(RSC,"out_channel_layout",    RSC_OutChannelLayout,0);
+        av_opt_set_int(RSC,"out_sample_rate",       RSC_OutSampleRate,   0);
+        av_opt_set_int(RSC,"in_channel_count",      RSC_InChannels,      0);
+        av_opt_set_int(RSC,"out_channel_count",     RSC_OutChannels,     0);
+        av_opt_set_sample_fmt(RSC,"in_sample_fmt",  RSC_InSampleFmt,     0);
+        av_opt_set_sample_fmt(RSC,"out_sample_fmt", RSC_OutSampleFmt,    0);
+        if ((RSC)&&(swr_init(RSC)<0)) {
+            ToLog(LOGMSG_CRITICAL,QString("CheckResampler: swr_init failed"));
+            swr_free(&RSC);
+            RSC=NULL;
+        }
+        if (!RSC) ToLog(LOGMSG_CRITICAL,QString("CheckResampler: swr_alloc_set_opts failed"));
     }
 }
 
@@ -2875,85 +2145,27 @@ int cVideoFile::VideoFilter_Open() {
 
     VideoFilterGraph->scale_sws_opts = av_strdup("flags=4");
 
-    #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
+    char args[512];
+    snprintf(args, sizeof(args),"video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
+             FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->width,FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->height,
+             FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->format,
+             FFMPEGvideoFile->streams[VideoStreamNumber]->avg_frame_rate.num,FFMPEGvideoFile->streams[VideoStreamNumber]->avg_frame_rate.den,
+             FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->sample_aspect_ratio.num,FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->sample_aspect_ratio.den
+    );
 
-        QString args=QString("%1:%2:%3:%4:%5:%6:%7")
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->width)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->height)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->pix_fmt)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->time_base.num)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->time_base.den)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.num)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.den);
+    const AVFilter *srcFilter=avfilter_get_by_name("buffer");
+    const AVFilter *outFilter=avfilter_get_by_name("buffersink");
 
-        AVFilter *srcFilter=avfilter_get_by_name("buffer");
-        AVFilter *outFilter=avfilter_get_by_name("nullsink");
-
-        if ((result=avfilter_graph_create_filter(&VideoFilterIn,srcFilter,"src",args.toLocal8Bit().constData(),NULL,VideoFilterGraph))<0) {
-            ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: src"));
-            return result;
-        }
-        if ((result=avfilter_graph_create_filter(&VideoFilterOut,outFilter,"out",NULL,NULL,VideoFilterGraph))<0) {
-            ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: out"));
-            return result;
-        }
-
-        AVFilterInOut *outputs = (AVFilterInOut *)av_malloc(sizeof(AVFilterInOut));
-        AVFilterInOut *inputs  = (AVFilterInOut *)av_malloc(sizeof(AVFilterInOut));
-
-    #elif defined(LIBAV)
-
-        QString args=QString("%1:%2:%3:%4:%5:%6:%7")
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->width)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->height)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->pix_fmt)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->time_base.num)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->time_base.den)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.num)
-            .arg(LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.den);
-
-        AVFilter *srcFilter=avfilter_get_by_name("buffer");
-        AVFilter *outFilter=avfilter_get_by_name("buffersink");
-
-        if ((result=avfilter_graph_create_filter(&VideoFilterIn,srcFilter,"src",args.toLocal8Bit().constData(),NULL,VideoFilterGraph))<0) {
-            ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: src"));
-            return result;
-        }
-        std::vector<AVPixelFormat> m_formats;
-        m_formats.push_back(AV_PIX_FMT_YUVJ420P);
-        m_formats.push_back(AV_PIX_FMT_NONE);      /* always add none to get a terminated list in Libav world */
-        if ((result=avfilter_graph_create_filter(&VideoFilterOut,outFilter,"out",NULL,NULL,VideoFilterGraph))<0) {
-            ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: out"));
-            return result;
-        }
-        AVFilterInOut *outputs=avfilter_inout_alloc();
-        AVFilterInOut *inputs =avfilter_inout_alloc();
-
-    #elif defined(FFMPEG)
-
-        char args[512];
-        snprintf(args, sizeof(args),"video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-                 LibavVideoFile->streams[VideoStreamNumber]->codec->width,LibavVideoFile->streams[VideoStreamNumber]->codec->height,
-                 LibavVideoFile->streams[VideoStreamNumber]->codec->pix_fmt,
-                 LibavVideoFile->streams[VideoStreamNumber]->codec->time_base.num,LibavVideoFile->streams[VideoStreamNumber]->codec->time_base.den,
-                 LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.num,LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio.den
-        );
-
-        const AVFilter *srcFilter=avfilter_get_by_name("buffer");
-        const AVFilter *outFilter=avfilter_get_by_name("buffersink");
-
-        if ((result=avfilter_graph_create_filter(&VideoFilterIn,srcFilter,"in",args,NULL,VideoFilterGraph))<0) {
-            ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: src"));
-            return result;
-        }
-        if ((result=avfilter_graph_create_filter(&VideoFilterOut,outFilter,"out",NULL,NULL,VideoFilterGraph))<0) {
-            ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: out"));
-            return result;
-        }
-        AVFilterInOut *outputs=avfilter_inout_alloc();
-        AVFilterInOut *inputs =avfilter_inout_alloc();
-
-    #endif
+    if ((result=avfilter_graph_create_filter(&VideoFilterIn,srcFilter,"in",args,NULL,VideoFilterGraph))<0) {
+        ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: src"));
+        return result;
+    }
+    if ((result=avfilter_graph_create_filter(&VideoFilterOut,outFilter,"out",NULL,NULL,VideoFilterGraph))<0) {
+        ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_create_filter: out"));
+        return result;
+    }
+    AVFilterInOut *outputs=avfilter_inout_alloc();
+    AVFilterInOut *inputs =avfilter_inout_alloc();
 
     outputs->name = av_strdup("in");
     outputs->filter_ctx = VideoFilterIn;
@@ -2965,13 +2177,7 @@ int cVideoFile::VideoFilter_Open() {
     inputs->pad_idx = 0;
     inputs->next = NULL;
 
-    #if defined(LIBAV)
-    if ((result=avfilter_graph_parse(VideoFilterGraph,QString("yadif=1:-1").toLocal8Bit().constData(),inputs,outputs,NULL))<0) {
-    #elif (defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-    if ((result=avfilter_graph_parse(VideoFilterGraph,QString("yadif=deint=interlaced:mode=send_frame:parity=auto").toLocal8Bit().constData(),&inputs,&outputs,NULL))<0) {
-    #elif defined(FFMPEG)&&(FFMPEGVERSIONINT>=201)
     if ((result=avfilter_graph_parse_ptr(VideoFilterGraph,QString("yadif=deint=interlaced:mode=send_frame:parity=auto").toLocal8Bit().constData(),&inputs,&outputs,NULL))<0) {
-    #endif
         ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Open : avfilter_graph_parse"));
         return result;
     }
@@ -2994,167 +2200,55 @@ void cVideoFile::VideoFilter_Close() {
 
 //====================================================================================================================
 
-#if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-    int cVideoFile::VideoFilter_Process() {
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-            // LIBAV 8
-            int Ret=av_vsrc_buffer_add_frame(VideoFilterIn,FrameBufferYUV,FrameBufferYUV->pts,LibavVideoFile->streams[VideoStreamNumber]->codec->sample_aspect_ratio);
-            if (Ret<0) {
-                ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Process : av_vsrc_buffer_add_frame"));
-                return VC_ERROR;
-            }
-            int NbrFrames;
-            while ((NbrFrames=avfilter_poll_frame(VideoFilterOut->inputs[0]))>0) {
-                if (VideoFilterOut->inputs[0]->cur_buf) {
-                    avfilter_unref_buffer(VideoFilterOut->inputs[0]->cur_buf);
-                    VideoFilterOut->inputs[0]->cur_buf = NULL;
-                }
-
-                if ((Ret=avfilter_request_frame(VideoFilterOut->inputs[0]))<0) {
-                    ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Process : avfilter_request_frame : %1").arg(Ret));
-                    return VC_ERROR;
-                }
-
-                FrameBufferYUV->repeat_pict      = -(NbrFrames - 1);
-                FrameBufferYUV->interlaced_frame = VideoFilterOut->inputs[0]->cur_buf->video->interlaced;
-                FrameBufferYUV->top_field_first  = VideoFilterOut->inputs[0]->cur_buf->video->top_field_first;
-
-            }
-
-            if (VideoFilterOut->inputs[0]->cur_buf) {
-                if (FrameBufferYUV->opaque) avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-                FrameBufferYUV->opaque=(void *)avfilter_ref_buffer(VideoFilterOut->inputs[0]->cur_buf,AV_PERM_READ);
-            }
-
-        #elif defined(LIBAV)
-            // LIBAV9
-            AVFilterBufferRef *m_pBufferRef=NULL;
-            int Ret=av_buffersrc_write_frame(VideoFilterIn,FrameBufferYUV);
-            if (Ret<0) {
-                ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Process : av_buffersrc_write_frame"));
-                return VC_ERROR;
-            }
-            while ((Ret=av_buffersink_read(VideoFilterOut,&m_pBufferRef)) >= 0) {
-                if (!m_pBufferRef) return VC_ERROR; // for first frame ther is no return
-                FrameBufferYUV->interlaced_frame=m_pBufferRef->video->interlaced;
-                FrameBufferYUV->top_field_first =m_pBufferRef->video->top_field_first;
-                if (m_pBufferRef) {
-                    if (FrameBufferYUV->opaque) avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-                    FrameBufferYUV->opaque=(void *)avfilter_ref_buffer(m_pBufferRef,AV_PERM_READ);
-                    avfilter_unref_buffer(m_pBufferRef);
-                    m_pBufferRef = NULL;
-                }
-            }
-        #else
-            // FFMPEG 1.2
-            int Ret=av_buffersrc_add_frame(VideoFilterIn,FrameBufferYUV,0);
-            if (Ret<0) {
-                ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Process : av_buffersrc_add_frame"));
-                return VC_ERROR;
-            }
-            int NbrFrames;
-            if ((NbrFrames=av_buffersink_poll_frame(VideoFilterOut))<0) {
-                ToLog(LOGMSG_CRITICAL,QString("Error in cVideoFile::VideoFilter_Process : av_buffersink_poll_frame"));
-                return VC_ERROR;
-            }
-            while (NbrFrames>0) {
-                AVFilterBufferRef *m_pBufferRef=NULL;
-                Ret=av_buffersink_get_buffer_ref(VideoFilterOut,&m_pBufferRef,0);
-                if (!m_pBufferRef) return VC_ERROR; // for first frame ther is no return
-                FrameBufferYUV->repeat_pict     =-(NbrFrames-1);
-                FrameBufferYUV->interlaced_frame=m_pBufferRef->video->interlaced;
-                FrameBufferYUV->top_field_first =m_pBufferRef->video->top_field_first;
-                NbrFrames--;
-                if (m_pBufferRef) {
-                    if (FrameBufferYUV->opaque) avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-                    FrameBufferYUV->opaque=(void *)avfilter_ref_buffer(m_pBufferRef,AV_PERM_READ);
-                    avfilter_unref_buffer(m_pBufferRef);
-                    m_pBufferRef = NULL;
-                }
-            }
-
-        #endif
-        return VC_BUFFER;
-    }
-#endif
-
-//====================================================================================================================
-
 bool cVideoFile::SeekFile(AVStream *VideoStream,AVStream *AudioStream,int64_t Position) {
     bool            ret=true;
-    AVFormatContext *LibavFile  =NULL;
+    AVFormatContext *FFMPEGfile  =NULL;
     int             StreamNumber=0;
 
     // Reset context variables and buffers
     if (AudioStream) {
         CloseResampler();
-        LibavFile=LibavAudioFile;
+        FFMPEGfile=FFMPEGaudioFile;
         StreamNumber=AudioStreamNumber;
     } else if (VideoStream) {
         if (VideoFilterGraph) VideoFilter_Close();
         while (CacheImage.count()>0) delete(CacheImage.takeLast());
         FrameBufferYUVReady   =false;
         FrameBufferYUVPosition=0;
-        LibavFile=LibavVideoFile;
+        FFMPEGfile=FFMPEGvideoFile;
         StreamNumber=VideoStreamNumber;
     }
 
     if (Position<0) Position=0;
 
-    // Flush LibAV buffers
-    for (unsigned int i=0;i<LibavFile->nb_streams;i++)  {
-        AVCodecContext *codec_context = LibavFile->streams[i]->codec;
-        if (codec_context && codec_context->codec) avcodec_flush_buffers(codec_context);
-    }
-    #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-        int64_t seek_target=av_rescale_q(Position,AV_TIME_BASE_Q,LibavFile->streams[StreamNumber]->time_base);
-        if (seek_target<0) seek_target=0;
-        int errcode=0;
-        if ((errcode=avformat_seek_file(LibavFile,StreamNumber,INT64_MIN,seek_target,INT64_MAX,AVSEEK_FLAG_BACKWARD))<0) {
-            if (errcode==-1) {
-                if ((errcode=avformat_seek_file(LibavFile,-1,INT64_MIN,Position,INT64_MAX,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY))<0) {
-                    ToLog(LOGMSG_CRITICAL,GetAvErrorMessage(errcode));
-                }
-            } else {
-                // Try in AVSEEK_FLAG_ANY mode
-                if ((errcode=av_seek_frame(LibavFile,StreamNumber,seek_target,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY))<0) {
-                    ToLog(LOGMSG_CRITICAL,GetAvErrorMessage(errcode));
-                    // Try with default stream if exist
-                    int DefaultStream=av_find_default_stream_index(LibavFile);
-                    if ((DefaultStream==StreamNumber)||(Position>0)||(DefaultStream<0)||((errcode=av_seek_frame(LibavFile,DefaultStream,0,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_BYTE)<0))) {
-                        ToLog(LOGMSG_CRITICAL,GetAvErrorMessage(errcode));
-                        ToLog(LOGMSG_CRITICAL,"Error in cVideoFile::ReadFrame : Seek error");
-                        ret=false;
-                    }
-                }
-            }
-        }
-    #else
-        int64_t seek_target=av_rescale_q(Position,AV_TIME_BASE_Q,LibavFile->streams[StreamNumber]->time_base);
-        if (seek_target<0) seek_target=0;
-        int errcode=0;
-        if ((SeekErrorCount>0)||((errcode=avformat_seek_file(LibavFile,StreamNumber,INT64_MIN,seek_target,INT64_MAX,AVSEEK_FLAG_BACKWARD))<0)) {
-            if (SeekErrorCount==0) ToLog(LOGMSG_DEBUGTRACE,GetAvErrorMessage(errcode));
-            // Try in AVSEEK_FLAG_ANY mode
-            if ((errcode=av_seek_frame(LibavFile,StreamNumber,seek_target,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY))<0) {
+    // Flush ffmpeg buffers
+    if (VideoDecoderCodecCtx) avcodec_flush_buffers(VideoDecoderCodecCtx);
+    if (AudioDecoderCodecCtx) avcodec_flush_buffers(AudioDecoderCodecCtx);
+    
+    int64_t seek_target=av_rescale_q(Position,AV_TIME_BASE_Q,FFMPEGfile->streams[StreamNumber]->time_base);
+    if (seek_target<0) seek_target=0;
+    int errcode=0;
+    if ((SeekErrorCount>0)||((errcode=avformat_seek_file(FFMPEGfile,StreamNumber,INT64_MIN,seek_target,INT64_MAX,AVSEEK_FLAG_BACKWARD))<0)) {
+        if (SeekErrorCount==0) ToLog(LOGMSG_DEBUGTRACE,GetAvErrorMessage(errcode));
+        // Try in AVSEEK_FLAG_ANY mode
+        if ((errcode=av_seek_frame(FFMPEGfile,StreamNumber,seek_target,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY))<0) {
+            ToLog(LOGMSG_DEBUGTRACE,GetAvErrorMessage(errcode));
+            // Try with default stream if exist
+            int DefaultStream=av_find_default_stream_index(FFMPEGfile);
+            if ((DefaultStream==StreamNumber)||(Position>0)||(DefaultStream<0)||((errcode=av_seek_frame(FFMPEGfile,DefaultStream,0,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_BYTE)<0))) {
                 ToLog(LOGMSG_DEBUGTRACE,GetAvErrorMessage(errcode));
-                // Try with default stream if exist
-                int DefaultStream=av_find_default_stream_index(LibavFile);
-                if ((DefaultStream==StreamNumber)||(Position>0)||(DefaultStream<0)||((errcode=av_seek_frame(LibavFile,DefaultStream,0,AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_BYTE)<0))) {
-                    ToLog(LOGMSG_DEBUGTRACE,GetAvErrorMessage(errcode));
-                    ToLog(LOGMSG_CRITICAL,"Error in cVideoFile::ReadFrame : Seek error");
-                    ret=false;
-                }
+                ToLog(LOGMSG_CRITICAL,"Error in cVideoFile::ReadFrame : Seek error");
+                ret=false;
             }
         }
-    #endif
+    }
+
     // read first packet to ensure we have correct position !
     // elsewhere, redo seek 5 times until exit with error
     if (AudioStream) {
-        AVPacket *StreamPacket=new AVPacket();
-        av_init_packet(StreamPacket);
+        AVPacket *StreamPacket=av_packet_alloc();
         StreamPacket->flags|=AV_PKT_FLAG_KEY;
-        while (av_read_frame(LibavFile,StreamPacket)!=0);
+        while (av_read_frame(FFMPEGfile,StreamPacket)!=0);
         int64_t FramePts=StreamPacket->pts!=(int64_t)AV_NOPTS_VALUE?StreamPacket->pts:-1;
         if ((FramePts<(Position/1000)-500)||(FramePts>(Position/1000)+500)) {
             SeekErrorCount++;
@@ -3166,34 +2260,10 @@ bool cVideoFile::SeekFile(AVStream *VideoStream,AVStream *AudioStream,int64_t Po
 
 //====================================================================================================================
 
-u_int8_t *cVideoFile::Resample(AVFrame *Frame,int64_t *SizeDecoded,int DstSampleSize) {
-    u_int8_t *Data=NULL;
-    #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-        Data=(u_int8_t *)av_malloc(MaxAudioLenDecoded);
-        if (Data) *SizeDecoded=audio_resample(RSC,(short int*)Data,(short int*)Frame->data[0],Frame->nb_samples)*DstSampleSize;
-    #elif defined(LIBAV)
-        u_int8_t *in_data[RESAMPLE_MAX_CHANNELS]={0};
-        int     in_linesize=0;
-        Data=Frame->data[0];
-        if (av_samples_fill_arrays(in_data,&in_linesize,(u_int8_t *)Frame->data[0],RSC_InChannels,Frame->nb_samples,RSC_InSampleFmt,1)<0) {
-            ToLog(LOGMSG_CRITICAL,QString("failed in_data fill arrays"));
-        } else {
-            u_int8_t *out_data[RESAMPLE_MAX_CHANNELS]={0};
-            int      out_linesize=0;
-            int      out_samples=avresample_available(RSC)+av_rescale_rnd(avresample_get_delay(RSC)+Frame->nb_samples,RSC_OutSampleRate,RSC_InSampleRate,AV_ROUND_UP);
-            if (av_samples_alloc(&Data,&out_linesize,RSC_OutChannels,out_samples,RSC_OutSampleFmt,1)<0) {
-                ToLog(LOGMSG_CRITICAL,QString("av_samples_alloc failed"));
-            } else if (av_samples_fill_arrays(out_data,&out_linesize,Data,RSC_OutChannels,out_samples,RSC_OutSampleFmt,1)<0) {
-                ToLog(LOGMSG_CRITICAL,QString("failed out_data fill arrays"));
-            } else {
-                *SizeDecoded=avresample_convert(RSC,out_data,out_linesize,out_samples,Frame->data,in_linesize,Frame->nb_samples)*DstSampleSize;
-            }
-        }
-    #elif defined(FFMPEG)
-        Data=(u_int8_t *)av_malloc(MaxAudioLenDecoded);
-        u_int8_t *out[]={Data};
-        if (Data) *SizeDecoded=swr_convert(RSC,out,MaxAudioLenDecoded/DstSampleSize,(const u_int8_t **)Frame->data,Frame->nb_samples)*DstSampleSize;
-    #endif
+uint8_t *cVideoFile::Resample(AVFrame *Frame,int64_t *SizeDecoded,int DstSampleSize) {
+    uint8_t *Data=(uint8_t *)av_malloc(MaxAudioLenDecoded);
+    uint8_t *out[]={Data};
+    if (Data) *SizeDecoded=swr_convert(RSC,out,MaxAudioLenDecoded/DstSampleSize,(const uint8_t **)Frame->data,Frame->nb_samples)*DstSampleSize;
     return Data;
 }
 
@@ -3203,8 +2273,8 @@ u_int8_t *cVideoFile::Resample(AVFrame *Frame,int64_t *SizeDecoded,int DstSample
 
 qreal cVideoFile::GetFPSDuration() {
     qreal FPSDuration;
-    if ((VideoStreamNumber>=0)&&(LibavVideoFile->streams[VideoStreamNumber]))
-        FPSDuration=qreal(LibavVideoFile->streams[VideoStreamNumber]->avg_frame_rate.den*(AV_TIME_BASE/1000))/qreal(LibavVideoFile->streams[VideoStreamNumber]->avg_frame_rate.num);
+    if ((VideoStreamNumber>=0)&&(FFMPEGvideoFile->streams[VideoStreamNumber]))
+        FPSDuration=qreal(FFMPEGvideoFile->streams[VideoStreamNumber]->avg_frame_rate.den*(AV_TIME_BASE/1000))/qreal(FFMPEGvideoFile->streams[VideoStreamNumber]->avg_frame_rate.num);
     else FPSDuration=1;
     return FPSDuration;
 }
@@ -3218,7 +2288,7 @@ qreal cVideoFile::GetFPSDuration() {
 #define MAXDELTA        2500000
 
 // Remark: Position must use AV_TIMEBASE Unit
-QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndPos,bool Deinterlace,cSoundBlockList *SoundTrackBloc,double Volume,bool ForceSoundOnly,int NbrDuration) {
+QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndPos,bool Deinterlace,cSoundBlockList *SoundTrackBloc,double Volume,int NbrDuration) {
     // Ensure file was previously open
     if ((!IsOpen)&&(!OpenCodecAndFile())) return NULL;
 
@@ -3230,11 +2300,11 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
     }
     if (Position<0) Position=0;
 
-    AVStream *VideoStream =(/*(!MusicOnly)&&(!ForceSoundOnly)&&*/(VideoStreamNumber>=0)?LibavVideoFile->streams[VideoStreamNumber]:NULL);
+    AVStream *VideoStream =(VideoStreamNumber>=0)?FFMPEGvideoFile->streams[VideoStreamNumber]:NULL;
 
     cVideoFile::sAudioContext AudioContext;
     AudioContext.SoundTrackBloc =SoundTrackBloc;
-    AudioContext.AudioStream    =((AudioStreamNumber>=0)&&(SoundTrackBloc)?LibavAudioFile->streams[AudioStreamNumber]:NULL);
+    AudioContext.AudioStream    =((AudioStreamNumber>=0)&&(SoundTrackBloc)?FFMPEGaudioFile->streams[AudioStreamNumber]:NULL);
     AudioContext.FPSSize        =SoundTrackBloc?SoundTrackBloc->SoundPacketSize*SoundTrackBloc->NbrPacketForFPS:0;
     AudioContext.FPSDuration    =AudioContext.FPSSize?(double(AudioContext.FPSSize)/(SoundTrackBloc->Channels*SoundTrackBloc->SampleBytes*SoundTrackBloc->SamplingRate))*AV_TIME_BASE:0;
     AudioContext.TimeBase       =AudioContext.AudioStream?double(AudioContext.AudioStream->time_base.den)/double(AudioContext.AudioStream->time_base.num):0;
@@ -3280,9 +2350,9 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
     //================================================
 
     if (AudioContext.ContinueAudio) {
-        AudioContext.NeedResampling=((AudioContext.AudioStream->codec->sample_fmt !=AV_SAMPLE_FMT_S16)||
-                                     (AudioContext.AudioStream->codec->channels   !=SoundTrackBloc->Channels)||
-                                     (AudioContext.AudioStream->codec->sample_rate!=SoundTrackBloc->SamplingRate));
+        AudioContext.NeedResampling=((AudioContext.AudioStream->codecpar->format !=AV_SAMPLE_FMT_S16)||
+                                     (AudioContext.AudioStream->codecpar->channels   !=SoundTrackBloc->Channels)||
+                                     (AudioContext.AudioStream->codecpar->sample_rate!=SoundTrackBloc->SamplingRate));
 
         // Calc if we need to seek to a position
         int64_t Start =SoundTrackBloc->CurrentPosition;
@@ -3302,14 +2372,11 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
         // Prepare resampler
         if ((AudioContext.ContinueAudio)&&(AudioContext.NeedResampling)) {
             if (!ResamplingContinue) CloseResampler();
-            CheckResampler(AudioContext.AudioStream->codec->channels,SoundTrackBloc->Channels,
-                           AudioContext.AudioStream->codec->sample_fmt,SoundTrackBloc->SampleFormat,
-                           AudioContext.AudioStream->codec->sample_rate,SoundTrackBloc->SamplingRate
-                           #if (defined(LIBAV)&&(LIBAVVERSIONINT>=9)) || defined(FFMPEG)
-                           ,AudioContext.AudioStream->codec->channel_layout
-                           ,av_get_default_channel_layout(SoundTrackBloc->Channels)
-                           #endif
-                           );
+            CheckResampler(AudioContext.AudioStream->codecpar->channels,SoundTrackBloc->Channels,
+                           (AVSampleFormat)AudioContext.AudioStream->codecpar->format,SoundTrackBloc->SampleFormat,
+                           AudioContext.AudioStream->codecpar->sample_rate,SoundTrackBloc->SamplingRate,
+                           AudioContext.AudioStream->codecpar->channel_layout,
+                           av_get_default_channel_layout(SoundTrackBloc->Channels));
         }
     }
 
@@ -3326,11 +2393,8 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
     if (ContinueVideo) {
         int64_t DiffTimePosition=-1000000;  // Compute difftime between asked position and previous end decoded position
 
-        if (FrameBufferYUVReady) {
+        if (FrameBufferYUVReady)
             DiffTimePosition=Position-FrameBufferYUVPosition;
-            //if ((Position==0)||(DiffTimePosition<0)||(DiffTimePosition>1500000))
-            //    ToLog(LOGMSG_INFORMATION,QString("VIDEO-SEEK %1 TO %2").arg(ShortName).arg(Position));
-        }
 
         // Calc if we need to seek to a position
         if ((Position==0)||(DiffTimePosition<0)||(DiffTimePosition>1500000)) {// Allow 1,5 sec diff (rounded double !)
@@ -3346,15 +2410,13 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
     //*************************************************************************************************************************************
 
     // AUDIO PART
-    //QFutureWatcher<void> ThreadAudio;
     while (AudioContext.ContinueAudio) {
-        AVPacket *StreamPacket=new AVPacket();
+        AVPacket *StreamPacket=av_packet_alloc();
         if (!StreamPacket) {
             AudioContext.ContinueAudio=false;
         } else {
-            av_init_packet(StreamPacket);
             StreamPacket->flags|=AV_PKT_FLAG_KEY;
-            if (av_read_frame(LibavAudioFile,StreamPacket)<0) {
+            if (av_read_frame(FFMPEGaudioFile,StreamPacket)<0) {
                 // If error reading frame then we considere we have reach the end of file
                 if (!IsComputedAudioDuration) {
                     dEndFile=qreal(SoundTrackBloc->CurrentPosition)/AV_TIME_BASE;
@@ -3368,28 +2430,25 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
                 SoundTrackBloc->UseLatestData();
 
             } else {
-                //if (ThreadAudio.isRunning()) ThreadAudio.waitForFinished();
-                //ThreadAudio.setFuture(QtConcurrent::run(this,&cVideoFile::DecodeAudio,&AudioContext,StreamPacket,Position));
                 DecodeAudio(&AudioContext,StreamPacket,Position);
                 StreamPacket=NULL;
             }
         }
         // Continue with a new one
         if (StreamPacket!=NULL) {
-            av_free_packet(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
+            av_packet_unref(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
             delete StreamPacket;
             StreamPacket=NULL;
         }
     }
-    //if (ThreadAudio.isRunning()) ThreadAudio.waitForFinished();
 
     // VIDEO PART
     if (VideoStream) {
         if (!ContinueVideo) {
             ToLog(LOGMSG_DEBUGTRACE,QString("Video image for position %1 => use image in cache").arg(Position));
-        } else if (Position<LibavStartTime) {
+        } else if (Position<FFMPEGstartTime) {
             ToLog(LOGMSG_CRITICAL,QString("Image position %1 is before video stream start => return black frame").arg(Position));
-            RetImage =new QImage(LibavVideoFile->streams[VideoStreamNumber]->codec->width,LibavVideoFile->streams[VideoStreamNumber]->codec->height,QImage::Format_ARGB32_Premultiplied);
+            RetImage =new QImage(FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->width,FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->height,QImage::Format_ARGB32_Premultiplied);
             RetImage->fill(0);
             RetImagePosition=Position;
         } else {
@@ -3398,15 +2457,14 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
             bool FreeFrames      =false;
 
             while (ContinueVideo) {
-                AVPacket *StreamPacket=new AVPacket();
+                AVPacket *StreamPacket=av_packet_alloc();
                 if (!StreamPacket) {
                     ContinueVideo=false;
                 } else {
-                    av_init_packet(StreamPacket);
                     StreamPacket->flags|=AV_PKT_FLAG_KEY;  // HACK for CorePNG to decode as normal PNG by default
 
                     int errcode=0;
-                    if ((errcode=av_read_frame(LibavVideoFile,StreamPacket))<0) {
+                    if ((errcode=av_read_frame(FFMPEGvideoFile,StreamPacket))<0) {
                         if (errcode==AVERROR_EOF) {
                             // We have reach the end of file
                             if (!IsComputedAudioDuration) {
@@ -3424,12 +2482,11 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
                                 IsVideoFind=true;
                                 ContinueVideo=false;
                             }
-
                         } else {
                             ToLog(LOGMSG_CRITICAL,GetAvErrorMessage(errcode));
                             // If error reading frame
                             if (MaxErrorCount>0) {
-                                // Files with stream could provoque this, so we ignore the first MaxErrorCount errors
+                                // Files with stream could provoke this, so we ignore the first MaxErrorCount errors
                                 MaxErrorCount--;
                             } else {
                                 if ((!LastImage.isNull())&&(FrameBufferYUVReady)&&(FrameBufferYUVPosition>=(dEndFile-1.5)*AV_TIME_BASE)) {
@@ -3446,27 +2503,16 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
                             }
                         }
                     } else {
-
                         int64_t FramePts=StreamPacket->pts!=(int64_t)AV_NOPTS_VALUE?StreamPacket->pts:-1;
-                        double  TimeBase=double(LibavVideoFile->streams[StreamPacket->stream_index]->time_base.den)/double(LibavVideoFile->streams[StreamPacket->stream_index]->time_base.num);
+                        double  TimeBase=double(FFMPEGvideoFile->streams[StreamPacket->stream_index]->time_base.den)/double(FFMPEGvideoFile->streams[StreamPacket->stream_index]->time_base.num);
                         if (FramePts>=0) VideoFramePosition=(double(FramePts)/TimeBase);
                         if (StreamPacket->stream_index==VideoStreamNumber) {
-
                             // Allocate structures
-                            if (FrameBufferYUV==NULL) FrameBufferYUV=ALLOCFRAME();
+                            if (FrameBufferYUV==NULL) FrameBufferYUV=av_frame_alloc();
                             if (FrameBufferYUV) {
-
-                                #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-                                if (FrameBufferYUV->opaque) {
-                                    avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-                                    FrameBufferYUV->opaque=NULL;
-                                }
-                                #endif
-
-                                int FrameDecoded=0;
-                                LastLibAvMessageLevel=0;    // Clear LastLibAvMessageLevel : some decoder dont return error but display errors messages !
-                                int Error=avcodec_decode_video2(VideoStream->codec,FrameBufferYUV,&FrameDecoded,StreamPacket);
-                                if ((Error<0)||(LastLibAvMessageLevel==LOGMSG_CRITICAL)) {
+                                LastFFMPEGmessageLevel=0;    // Clear LastFFMPEGmessageLevel : some decoder dont return error but display errors messages !
+                                int Error=avcodec_send_packet(VideoDecoderCodecCtx,StreamPacket);
+                                if ((Error<0)||(LastFFMPEGmessageLevel==LOGMSG_CRITICAL)) {
                                     if (MaxErrorCount>0) {
                                         if (VideoFramePosition*1000000<Position) {
                                             ToLog(LOGMSG_INFORMATION,QString("IN:cVideoFile::ReadFrame - Error decoding packet: try left %1").arg(MaxErrorCount));
@@ -3485,96 +2531,78 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
                                         ToLog(LOGMSG_CRITICAL,QString("IN:cVideoFile::ReadFrame - Error decoding packet: and no try left"));
                                         ContinueVideo=false;
                                     }
-                                } else if (FrameDecoded>0) {
-
-                                    #if defined(FFMPEG)&&(FFMPEGVERSIONINT>=201)
-                                    FrameBufferYUV->pkt_pts = av_frame_get_best_effort_timestamp(FrameBufferYUV);
-                                    #endif
-
-                                    // Video filter part
-                                    if ((Deinterlace)&&(!VideoFilterGraph))           VideoFilter_Open();
-                                        else if ((!Deinterlace)&&(VideoFilterGraph))  VideoFilter_Close();
-
-                                    #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-                                    if (VideoFilterGraph) VideoFilter_Process();
-                                    #elif (defined(LIBAV)&&(LIBAVVERSIONINT>=10) || defined(FFMPEG)&&(FFMPEGVERSIONINT>=201))
-                                    AVFrame *FiltFrame=NULL;
-                                    if (VideoFilterGraph) {
-                                        // FFMPEG 2.0 / LIBAV 10
-                                        // push the decoded frame into the filtergraph
-                                        if (av_buffersrc_write_frame(VideoFilterIn,FrameBufferYUV)<0) {
-                                            ToLog(LOGMSG_INFORMATION,"IN:cVideoFile::ReadFrame : Error while feeding the filtergraph");
+                                } else {
+                                    Error=avcodec_receive_frame(VideoDecoderCodecCtx,FrameBufferYUV);
+                                    if (!Error) {
+                                        FrameBufferYUV->pts=FrameBufferYUV->best_effort_timestamp;
+    
+                                        // Video filter part
+                                        if ((Deinterlace)&&(!VideoFilterGraph))           VideoFilter_Open();
+                                            else if ((!Deinterlace)&&(VideoFilterGraph))  VideoFilter_Close();
+    
+                                        
+                                        AVFrame *FiltFrame=NULL;
+                                        if (VideoFilterGraph) {
+                                            // push the decoded frame into the filtergraph
+                                            if (av_buffersrc_write_frame(VideoFilterIn,FrameBufferYUV)<0) {
+                                                ToLog(LOGMSG_INFORMATION,"IN:cVideoFile::ReadFrame : Error while feeding the filtergraph");
+                                            } else {
+                                                FiltFrame=av_frame_alloc();
+                                                // pull filtered frames from the filtergraph
+                                                int ret=av_buffersink_get_frame(VideoFilterOut,FiltFrame);
+                                                if ((ret<0)||(ret==AVERROR(EAGAIN))||(ret==AVERROR_EOF)) {
+                                                    ToLog(LOGMSG_INFORMATION,"IN:cVideoFile::ReadFrame : No image return by filter process");
+                                                    av_frame_unref(FiltFrame);
+                                                    av_frame_free(&FiltFrame);
+                                                    FiltFrame=NULL;
+                                                }
+                                            }
+                                        }
+                                        if (ByPassFirstImage) {
+                                            ByPassFirstImage=false;
+                                            FreeFrames      =true;
                                         } else {
-                                            FiltFrame=av_frame_alloc();
-                                            // pull filtered frames from the filtergraph
-                                            int ret=av_buffersink_get_frame(VideoFilterOut,FiltFrame);
-                                            if ((ret<0)||(ret==AVERROR(EAGAIN))||(ret==AVERROR_EOF)) {
-                                                ToLog(LOGMSG_INFORMATION,"IN:cVideoFile::ReadFrame : No image return by filter process");
+                                            int64_t pts=FrameBufferYUV->pts;
+                                            if (pts==(int64_t)AV_NOPTS_VALUE) {
+                                                if (FrameBufferYUV->pkt_dts!=(int64_t)AV_NOPTS_VALUE) {
+                                                    pts=FrameBufferYUV->pkt_dts;
+                                                    ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : No PTS so use DTS %1 for position %2").arg(pts).arg(Position));
+                                                } else {
+                                                    pts=0;
+                                                    ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : No PTS and no DTS for position %1").arg(Position));
+                                                }
+                                            }
+                                            FrameBufferYUVReady   =true;                                            // Keep actual value for FrameBufferYUV
+                                            FrameBufferYUVPosition=int64_t((qreal(pts)*av_q2d(VideoStream->time_base))*AV_TIME_BASE);    // Keep actual value for FrameBufferYUV
+                                            // Append this frame
+                                            cImageInCache *ObjImage=new cImageInCache(FrameBufferYUVPosition,FiltFrame,FrameBufferYUV);
+                                            FreeFrames=false;
+                                            int ToIns=0;
+                                            while ((ToIns<CacheImage.count())&&(CacheImage[ToIns]->Position<ObjImage->Position)) ToIns++;
+                                            if (ToIns<CacheImage.count()) {
+                                                CacheImage.insert(ToIns,ObjImage);
+                                                ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : Insert image %1 for position %2 (FramePosition=%3) - Key:%4 PTS:%5 Num:%6").arg(FrameBufferYUVPosition).arg(Position).arg(VideoFramePosition).arg(FrameBufferYUV->key_frame).arg(FrameBufferYUV->pts).arg(FrameBufferYUV->coded_picture_number));
+                                            } else {
+                                                CacheImage.append(ObjImage);
+                                                ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : Append image %1 for position %2 (FramePosition=%3) - Key:%4 PTS:%5 Num:%6").arg(FrameBufferYUVPosition).arg(Position).arg(VideoFramePosition).arg(FrameBufferYUV->key_frame).arg(FrameBufferYUV->pts).arg(FrameBufferYUV->coded_picture_number));
+                                            }
+    
+                                            // Count number of image > position
+                                            int Nbr=0;
+                                            for (int CNbr=0;CNbr<CacheImage.count();CNbr++) if ((CacheImage[CNbr]->Position>=Position)&&(CacheImage[CNbr]->Position-Position<ALLOWEDDELTA)) Nbr++;
+                                            IsVideoFind=Nbr>0;
+                                        }
+                                        if (FreeFrames) {
+                                            if (FiltFrame) {
                                                 av_frame_unref(FiltFrame);
                                                 av_frame_free(&FiltFrame);
-                                                FiltFrame=NULL;
+                                                av_frame_unref(FrameBufferYUV);
                                             }
-                                        }
-                                    }
-                                    #endif
-                                    if (ByPassFirstImage) {
-                                        ByPassFirstImage=false;
-                                        FreeFrames      =true;
-                                    } else {
-                                        int64_t pts=FrameBufferYUV->pkt_pts;
-                                        if (pts==(int64_t)AV_NOPTS_VALUE) {
-                                            if (FrameBufferYUV->pkt_dts!=(int64_t)AV_NOPTS_VALUE) {
-                                                pts=FrameBufferYUV->pkt_dts;
-                                                ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : No PTS so use DTS %1 for position %2").arg(pts).arg(Position));
-                                            } else {
-                                                pts=0;
-                                                ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : No PTS and no DTS for position %1").arg(Position));
-                                            }
-                                        }
-                                        FrameBufferYUVReady   =true;                                            // Keep actual value for FrameBufferYUV
-                                        FrameBufferYUVPosition=int64_t((qreal(pts)*av_q2d(VideoStream->time_base))*AV_TIME_BASE);    // Keep actual value for FrameBufferYUV
-                                        // Append this frame
-                                        cImageInCache *ObjImage=
-                                            #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-                                                new cImageInCache(FrameBufferYUVPosition,NULL,FrameBufferYUV);
-                                            #else
-                                                new cImageInCache(FrameBufferYUVPosition,FiltFrame,FrameBufferYUV);
-                                            #endif
-                                        FreeFrames=false;
-                                        int ToIns=0;
-                                        while ((ToIns<CacheImage.count())&&(CacheImage[ToIns]->Position<ObjImage->Position)) ToIns++;
-                                        if (ToIns<CacheImage.count()) {
-                                            CacheImage.insert(ToIns,ObjImage);
-                                            ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : Insert image %1 for position %2 (FramePosition=%3) - Key:%4 PTS:%5 Num:%6").arg(FrameBufferYUVPosition).arg(Position).arg(VideoFramePosition).arg(FrameBufferYUV->key_frame).arg(FrameBufferYUV->pkt_pts).arg(FrameBufferYUV->coded_picture_number));
+                                            av_frame_free(&FrameBufferYUV);
                                         } else {
-                                            CacheImage.append(ObjImage);
-                                            ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : Append image %1 for position %2 (FramePosition=%3) - Key:%4 PTS:%5 Num:%6").arg(FrameBufferYUVPosition).arg(Position).arg(VideoFramePosition).arg(FrameBufferYUV->key_frame).arg(FrameBufferYUV->pkt_pts).arg(FrameBufferYUV->coded_picture_number));
+                                            FrameBufferYUV=NULL;
+                                            FiltFrame     =NULL;
                                         }
-
-                                        // Count number of image > position
-                                        int Nbr=0;
-                                        for (int CNbr=0;CNbr<CacheImage.count();CNbr++) if ((CacheImage[CNbr]->Position>=Position)&&(CacheImage[CNbr]->Position-Position<ALLOWEDDELTA)) Nbr++;
-                                        IsVideoFind=Nbr>0;
-                                    }
-                                    if (FreeFrames) {
-                                        #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-                                        if (FrameBufferYUV->opaque) {
-                                            avfilter_unref_buffer((AVFilterBufferRef *)FrameBufferYUV->opaque);
-                                            FrameBufferYUV->opaque=NULL;
-                                        }
-                                        #else
-                                        if (FiltFrame) {
-                                            av_frame_unref(FiltFrame);
-                                            av_frame_free(&FiltFrame);
-                                            av_frame_unref(FrameBufferYUV);
-                                        }
-                                        #endif
-                                        FREEFRAME(&FrameBufferYUV);
-                                    } else {
-                                        FrameBufferYUV=NULL;
-                                        #if (defined(FFMPEG)&&(FFMPEGVERSIONINT>=201) || defined(LIBAV)&&(LIBAVVERSIONINT>=10))
-                                        FiltFrame     =NULL;
-                                        #endif
                                     }
                                 }
                             }
@@ -3587,7 +2615,7 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
 
                 // Continue with a new one
                 if (StreamPacket!=NULL) {
-                    av_free_packet(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
+                    av_packet_unref(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
                     delete StreamPacket;
                     StreamPacket=NULL;
                 }
@@ -3614,7 +2642,7 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
 
         if (!RetImage) {
             ToLog(LOGMSG_CRITICAL,QString("No video image return for position %1 => return black frame").arg(Position));
-            RetImage =new QImage(LibavVideoFile->streams[VideoStreamNumber]->codec->width,LibavVideoFile->streams[VideoStreamNumber]->codec->height,QImage::Format_ARGB32_Premultiplied);
+            RetImage =new QImage(FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->width,FFMPEGvideoFile->streams[VideoStreamNumber]->codecpar->height,QImage::Format_ARGB32_Premultiplied);
             RetImage->fill(0);
             RetImagePosition=Position;
         }
@@ -3635,43 +2663,32 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
 
 void cVideoFile::DecodeAudio(sAudioContext *AudioContext,AVPacket *StreamPacket,int64_t Position) {
     qreal FramePts=StreamPacket->pts!=(int64_t)AV_NOPTS_VALUE?StreamPacket->pts*av_q2d(AudioContext->AudioStream->time_base):-1;
-    if ((StreamPacket->stream_index==AudioStreamNumber)&&(StreamPacket->size>0)) {
-        AVPacket PacketTemp;
-        av_init_packet(&PacketTemp);
-        PacketTemp.data=StreamPacket->data;
-        PacketTemp.size=StreamPacket->size;
+    if ((StreamPacket->stream_index==AudioStreamNumber) && (StreamPacket->size>0)) {
         // NOTE: the audio packet can contain several NbrFrames
-        while ((AudioContext->Counter>0)&&(AudioContext->ContinueAudio)&&(PacketTemp.size>0)) {
-            AVFrame *Frame=ALLOCFRAME();
-            int     got_frame;
-            int     Len=avcodec_decode_audio4(AudioContext->AudioStream->codec,Frame,&got_frame,&PacketTemp);
-            if (Len<0) {
-                // if error, we skip the frame and exit the while loop
-                PacketTemp.size=0;
-            } else if (got_frame>0) {
-                DecodeAudioFrame(AudioContext,&FramePts,Frame,Position);
-                Frame=NULL;
-                PacketTemp.data+=Len;
-                PacketTemp.size-=Len;
-
-            } else {
-                AudioContext->Counter--;
-                if (AudioContext->Counter==0) {
-                    Len=0;
-                    ToLog(LOGMSG_CRITICAL,QString("Impossible to decode audio frame: Discard it"));
+        int errcode=0;
+        while ((AudioContext->Counter>0)&&(AudioContext->ContinueAudio)&&((errcode>=0))) {
+            errcode=avcodec_send_packet(AudioDecoderCodecCtx,StreamPacket);
+            while (errcode==0) {
+                AVFrame *Frame=av_frame_alloc();
+                errcode=avcodec_receive_frame(AudioDecoderCodecCtx,Frame);
+                if (errcode < 0) {
+                    av_frame_free(&Frame);
+                    AudioContext->Counter--;
+                    //if (AudioContext->Counter==0) ToLog(LOGMSG_CRITICAL,QString("Impossible to decode audio frame: Discard it"));
+                } else {
+                    DecodeAudioFrame(AudioContext,&FramePts,Frame,Position);
+                    Frame=NULL;
                 }
             }
-            if (Frame!=NULL) FREEFRAME(&Frame);
         }
     }
     // Continue with a new one
     if (StreamPacket!=NULL) {
-        av_free_packet(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
+        av_packet_unref(StreamPacket); // Free the StreamPacket that was allocated by previous call to av_read_frame
         delete StreamPacket;
         StreamPacket=NULL;
     }
     // Check if we need to continue loop
-    // Note: FPSDuration*(!VideoStream?2:1) is to enhance preview speed
     AudioContext->ContinueAudio=((AudioContext->ContinueAudio)&&(AudioContext->Counter>0)&&
                                  (AudioContext->AudioStream)&&(AudioContext->SoundTrackBloc)&&((AudioContext->SoundTrackBloc->ListCount()<AudioContext->SoundTrackBloc->NbrPacketForFPS)||
                                  (!((LastAudioReadedPosition>=Position+AudioContext->FPSDuration*AudioContext->NbrDuration)))));
@@ -3681,18 +2698,12 @@ void cVideoFile::DecodeAudio(sAudioContext *AudioContext,AVPacket *StreamPacket,
 
 void cVideoFile::DecodeAudioFrame(sAudioContext *AudioContext,qreal *FramePts,AVFrame *Frame,int64_t Position) {
     int64_t  SizeDecoded=0;
-    u_int8_t *Data      =NULL;
+    uint8_t *Data      =NULL;
     if ((AudioContext->NeedResampling)&&(RSC!=NULL)) {
         Data=Resample(Frame,&SizeDecoded,AudioContext->DstSampleSize);
     } else {
         Data=Frame->data[0];
-        #if (defined(LIBAV)&&(LIBAVVERSIONINT<=8))
-        SizeDecoded=Frame->nb_samples*av_get_bytes_per_sample(AudioContext->AudioStream->codec->sample_fmt)*AudioContext->AudioStream->codec->channels;
-        #elif defined(LIBAV)
-        SizeDecoded=av_samples_get_buffer_size(NULL,AudioContext->AudioStream->codec->channels,Frame->nb_samples,AudioContext->AudioStream->codec->sample_fmt,0);
-        #elif defined(FFMPEG)
-        SizeDecoded=Frame->nb_samples*av_get_bytes_per_sample(AudioContext->AudioStream->codec->sample_fmt)*AudioContext->AudioStream->codec->channels;
-        #endif
+        SizeDecoded=Frame->nb_samples*av_get_bytes_per_sample((AVSampleFormat)AudioContext->AudioStream->codecpar->format)*AudioContext->AudioStream->codecpar->channels;
     }
     AudioContext->ContinueAudio=(Data!=NULL);
     if (AudioContext->ContinueAudio) {
@@ -3725,7 +2736,7 @@ void cVideoFile::DecodeAudioFrame(sAudioContext *AudioContext,qreal *FramePts,AV
     }
     LastAudioReadedPosition =int64_t(AudioContext->AudioFramePosition*AV_TIME_BASE);    // Keep NextPacketPosition for determine next time if we need to seek
     if (Data!=Frame->data[0]) av_free(Data);
-    FREEFRAME(&Frame);
+    av_frame_free(&Frame);
 }
 
 //====================================================================================================================
@@ -3736,55 +2747,41 @@ QImage *cVideoFile::ConvertYUVToRGB(bool PreviewMode,AVFrame *Frame) {
 
     LastImage=QImage(W,H,QTPIXFMT);
     // Allocate structure for RGB image
-    AVFrame *FrameBufferRGB=ALLOCFRAME();
+    AVFrame *FrameBufferRGB=av_frame_alloc();
 
     if (FrameBufferRGB!=NULL) {
 
-        avpicture_fill(
-                (AVPicture *)FrameBufferRGB,        // Buffer to prepare
+        av_image_fill_arrays(
+                FrameBufferRGB->data,               // Buffer to prepare
+                FrameBufferRGB->linesize,
                 LastImage.bits(),                   // Buffer which will contain the image data
-                PIXFMT,                             // The format in which the picture data is stored (see http://wiki.aasimon.org/doku.php?id=Libav:pixelformat)
+                PIXFMT,                             // The format in which the picture data is stored (see 
                 W,                                  // The width of the image in pixels
-                H                                   // The height of the image in pixels
+                H,                                  // The height of the image in pixels
+                1
         );
 
         // Get a converter from libswscale
         struct SwsContext *img_convert_ctx=sws_getContext(
             Frame->width,                                                     // Src width
             Frame->height,                                                    // Src height
-            (AVPixelFormat)Frame->format,                                       // Src Format
+            (AVPixelFormat)Frame->format,                                     // Src Format
             W,                                                                // Destination width
             H,                                                                // Destination height
             PIXFMT,                                                           // Destination Format
             SWS_BICUBIC,NULL,NULL,NULL);                                      // flags,src Filter,dst Filter,param
 
         if (img_convert_ctx!=NULL) {
-            int ret;
-            #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-            if (Frame->opaque) {
-                AVFilterBufferRef *Buf=(AVFilterBufferRef *)Frame->opaque;
-                ret = sws_scale(
-                    img_convert_ctx,                                           // libswscale converter
-                    Buf->data,                                                 // Source buffer
-                    Buf->linesize,                                             // Source Stride ?
-                    0,                                                         // Source SliceY:the position in the source image of the slice to process, that is the number (counted starting from zero) in the image of the first row of the slice
-                    Frame->height,                                             // Source SliceH:the height of the source slice, that is the number of rows in the slice
-                    FrameBufferRGB->data,                                      // Destination buffer
-                    FrameBufferRGB->linesize                                   // Destination Stride
-                );
-            } else
-            #endif
-            {
-                ret = sws_scale(
-                    img_convert_ctx,                                           // libswscale converter
-                    Frame->data,                                               // Source buffer
-                    Frame->linesize,                                           // Source Stride ?
-                    0,                                                         // Source SliceY:the position in the source image of the slice to process, that is the number (counted starting from zero) in the image of the first row of the slice
-                    Frame->height,                                             // Source SliceH:the height of the source slice, that is the number of rows in the slice
-                    FrameBufferRGB->data,                                      // Destination buffer
-                    FrameBufferRGB->linesize                                   // Destination Stride
-                );
-            }
+            int ret = sws_scale(
+                img_convert_ctx,                                           // libswscale converter
+                Frame->data,                                               // Source buffer
+                Frame->linesize,                                           // Source Stride ?
+                0,                                                         // Source SliceY:the position in the source image of the slice to process, that is the number (counted starting from zero) in the image of the first row of the slice
+                Frame->height,                                             // Source SliceH:the height of the source slice, that is the number of rows in the slice
+                FrameBufferRGB->data,                                      // Destination buffer
+                FrameBufferRGB->linesize                                   // Destination Stride
+            );
+
             if (ret>0) {
                 // Auto crop image if 1088 format
                 if ((ApplicationConfig->Crop1088To1080)&&(LastImage.height()==1088)&&(LastImage.width()==1920))  LastImage=LastImage.copy(0,4,1920,1080);
@@ -3795,7 +2792,7 @@ QImage *cVideoFile::ConvertYUVToRGB(bool PreviewMode,AVFrame *Frame) {
         }
 
         // free FrameBufferRGB because we don't need it in the future
-        FREEFRAME(&FrameBufferRGB);
+        av_frame_free(&FrameBufferRGB);
     }
 
     //return FinalImage;
@@ -3806,7 +2803,7 @@ QImage *cVideoFile::ConvertYUVToRGB(bool PreviewMode,AVFrame *Frame) {
 // Load a video frame
 // DontUseEndPos default=false
 QImage *cVideoFile::ImageAt(bool PreviewMode,int64_t Position,cSoundBlockList *SoundTrackBloc,bool Deinterlace,
-                            double Volume,bool ForceSoundOnly,bool DontUseEndPos,int NbrDuration) {
+                            double Volume,bool DontUseEndPos,int NbrDuration) {
 
     if (!IsValide) return NULL;
     if (!IsOpen) OpenCodecAndFile();
@@ -3814,7 +2811,7 @@ QImage *cVideoFile::ImageAt(bool PreviewMode,int64_t Position,cSoundBlockList *S
     if ((PreviewMode)&&(!SoundTrackBloc)) {
         // for speed improvment, try to find image in cache (only for interface)
         cLuLoImageCacheObject *ImageObject=ApplicationConfig->ImagesCache.FindObject(RessourceKey,FileKey,ModifDateTime,ImageOrientation,ApplicationConfig->Smoothing,true);
-        if (!ImageObject) return ReadFrame(PreviewMode,Position*1000,DontUseEndPos,Deinterlace,SoundTrackBloc,Volume,ForceSoundOnly);
+        if (!ImageObject) return ReadFrame(PreviewMode,Position*1000,DontUseEndPos,Deinterlace,SoundTrackBloc,Volume);
 
         if ((ImageObject->Position==Position)&&(ImageObject->CachePreviewImage)) return new QImage(ImageObject->CachePreviewImage->copy());
 
@@ -3823,11 +2820,11 @@ QImage *cVideoFile::ImageAt(bool PreviewMode,int64_t Position,cSoundBlockList *S
             ImageObject->CachePreviewImage=NULL;
         }
         ImageObject->Position=Position;
-        ImageObject->CachePreviewImage=ReadFrame(PreviewMode,Position*1000,DontUseEndPos,Deinterlace,SoundTrackBloc,Volume,ForceSoundOnly,NbrDuration);
+        ImageObject->CachePreviewImage=ReadFrame(PreviewMode,Position*1000,DontUseEndPos,Deinterlace,SoundTrackBloc,Volume,NbrDuration);
         if (ImageObject->CachePreviewImage) return new QImage(ImageObject->CachePreviewImage->copy());
             else return NULL;
 
-    } else return ReadFrame(PreviewMode,Position*1000,DontUseEndPos,Deinterlace,SoundTrackBloc,Volume,ForceSoundOnly);
+    } else return ReadFrame(PreviewMode,Position*1000,DontUseEndPos,Deinterlace,SoundTrackBloc,Volume);
 }
 
 //====================================================================================================================
@@ -3840,7 +2837,7 @@ int cVideoFile::getThreadFlags(AVCodecID ID) {
         case AV_CODEC_ID_DVVIDEO:
         case AV_CODEC_ID_MPEG2VIDEO:   Ret=FF_THREAD_SLICE;                    break;
         case AV_CODEC_ID_H264 :        Ret=FF_THREAD_FRAME|FF_THREAD_SLICE;    break;
-        default:                    Ret=FF_THREAD_FRAME;                    break;
+        default:                       Ret=FF_THREAD_FRAME;                    break;
     }
     return Ret;
 }
@@ -3861,34 +2858,35 @@ bool cVideoFile::OpenCodecAndFile() {
     if (AudioStreamNumber!=-1) {
 
         // Open the file and get a LibAVFormat context and an associated LibAVCodec decoder
-        if (avformat_open_input(&LibavAudioFile,FileName().toLocal8Bit(),NULL,NULL)!=0) return false;
-        LibavAudioFile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
-        if (avformat_find_stream_info(LibavAudioFile,NULL)<0) {
-            avformat_close_input(&LibavAudioFile);
+        if (avformat_open_input(&FFMPEGaudioFile,FileName().toLocal8Bit(),NULL,NULL)!=0) return false;
+        FFMPEGaudioFile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
+        if (avformat_find_stream_info(FFMPEGaudioFile,NULL)<0) {
+            avformat_close_input(&FFMPEGaudioFile);
             return false;
         }
 
-        AVStream *AudioStream=LibavAudioFile->streams[AudioStreamNumber];
+        AVStream *AudioStream=FFMPEGaudioFile->streams[AudioStreamNumber];
 
         // Setup STREAM options
         AudioStream->discard=AVDISCARD_DEFAULT;
 
         // Find the decoder for the audio stream and open it
-        AudioDecoderCodec=avcodec_find_decoder(AudioStream->codec->codec_id);
-
+        AudioDecoderCodec=avcodec_find_decoder(AudioStream->codecpar->codec_id);
+        AudioDecoderCodecCtx=avcodec_alloc_context3(AudioDecoderCodec);
+        avcodec_parameters_to_context(AudioDecoderCodecCtx,AudioStream->codecpar);
+        
         // Setup decoder options
-        AudioStream->codec->debug            =0;                    // Debug level (0=nothing)
-        AudioStream->codec->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
-        AudioStream->codec->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
-        AudioStream->codec->skip_frame       =AVDISCARD_DEFAULT;    // ???????
-        AudioStream->codec->skip_idct        =AVDISCARD_DEFAULT;    // ???????
-        AudioStream->codec->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
-        AudioStream->codec->error_concealment=3;
-        AudioStream->codec->thread_count     =getCpuCount();
-        AudioStream->codec->thread_type      =getThreadFlags(AudioStream->codec->codec_id);
+        AudioDecoderCodecCtx->debug            =0;                    // Debug level (0=nothing)
+        AudioDecoderCodecCtx->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
+        AudioDecoderCodecCtx->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
+        AudioDecoderCodecCtx->skip_frame       =AVDISCARD_DEFAULT;    // ???????
+        AudioDecoderCodecCtx->skip_idct        =AVDISCARD_DEFAULT;    // ???????
+        AudioDecoderCodecCtx->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
+        AudioDecoderCodecCtx->error_concealment=3;
+        AudioDecoderCodecCtx->thread_count     =getCpuCount();
+        AudioDecoderCodecCtx->thread_type      =getThreadFlags(AudioStream->codecpar->codec_id);
 
-        if ((AudioDecoderCodec==NULL)||(avcodec_open2(AudioStream->codec,AudioDecoderCodec,NULL)<0)) {
-            //Mutex.unlock();
+        if ((AudioDecoderCodec==NULL)||(avcodec_open2(AudioDecoderCodecCtx,AudioDecoderCodec,NULL)<0)) {
             return false;
         }
 
@@ -3901,50 +2899,40 @@ bool cVideoFile::OpenCodecAndFile() {
     if ((VideoStreamNumber!=-1)&&(!MusicOnly)) {
 
         // Open the file and get a LibAVFormat context and an associated LibAVCodec decoder
-        if (avformat_open_input(&LibavVideoFile,FileName().toLocal8Bit(),NULL,NULL)!=0) return false;
-        LibavVideoFile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
-        if (avformat_find_stream_info(LibavVideoFile,NULL)<0) {
-            avformat_close_input(&LibavVideoFile);
+        if (avformat_open_input(&FFMPEGvideoFile,FileName().toLocal8Bit(),NULL,NULL)!=0) return false;
+        FFMPEGvideoFile->flags|=AVFMT_FLAG_GENPTS;       // Generate missing pts even if it requires parsing future NbrFrames.
+        if (avformat_find_stream_info(FFMPEGvideoFile,NULL)<0) {
+            avformat_close_input(&FFMPEGvideoFile);
             return false;
         }
 
-        AVStream *VideoStream=LibavVideoFile->streams[VideoStreamNumber];
+        AVStream *VideoStream=FFMPEGvideoFile->streams[VideoStreamNumber];
 
         // Setup STREAM options
         VideoStream->discard=AVDISCARD_DEFAULT;
 
         // Find the decoder for the video stream and open it
-        VideoDecoderCodec=avcodec_find_decoder(VideoStream->codec->codec_id);
-
+        VideoDecoderCodec=avcodec_find_decoder(VideoStream->codecpar->codec_id);
+        VideoDecoderCodecCtx=avcodec_alloc_context3(VideoDecoderCodec);
+        avcodec_parameters_to_context(VideoDecoderCodecCtx,VideoStream->codecpar);
+        
         // Setup decoder options
-        VideoStream->codec->debug            =0;                    // Debug level (0=nothing)
-        VideoStream->codec->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
-        VideoStream->codec->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
-        VideoStream->codec->skip_frame       =AVDISCARD_DEFAULT;    // ???????
-        VideoStream->codec->skip_idct        =AVDISCARD_DEFAULT;    // ???????
-        VideoStream->codec->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
-        VideoStream->codec->error_concealment=3;
-        VideoStream->codec->thread_count     =getCpuCount();
-        VideoStream->codec->thread_type      =getThreadFlags(VideoStream->codec->codec_id);
+        VideoDecoderCodecCtx->debug            =0;                    // Debug level (0=nothing)
+        VideoDecoderCodecCtx->workaround_bugs  =1;                    // Work around bugs in encoders which sometimes cannot be detected automatically : 1=autodetection
+        VideoDecoderCodecCtx->idct_algo        =FF_IDCT_AUTO;         // IDCT algorithm, 0=auto
+        VideoDecoderCodecCtx->skip_frame       =AVDISCARD_DEFAULT;    // ???????
+        VideoDecoderCodecCtx->skip_idct        =AVDISCARD_DEFAULT;    // ???????
+        VideoDecoderCodecCtx->skip_loop_filter =AVDISCARD_DEFAULT;    // ???????
+        VideoDecoderCodecCtx->error_concealment=3;
+        VideoDecoderCodecCtx->thread_count     =getCpuCount();
+        VideoDecoderCodecCtx->thread_type      =getThreadFlags(VideoStream->codecpar->codec_id);
 
         // Hack to correct wrong frame rates that seem to be generated by some codecs
-        if (VideoStream->codec->time_base.num>1000 && VideoStream->codec->time_base.den==1)
-            VideoStream->codec->time_base.den=1000;
-            
-        if (VideoStream->codec->time_base.num == 0) {
-            VideoStream->codec->time_base.num = VideoStream->avg_frame_rate.den;
-            VideoStream->codec->time_base.den = VideoStream->avg_frame_rate.num;
-        }          
-        
-        if (VideoStream->codec->sample_aspect_ratio.num == 0) {
-            if (VideoStream->sample_aspect_ratio.num == 0)
-                VideoStream->codec->sample_aspect_ratio.num = VideoStream->codec->sample_aspect_ratio.den = 1;
-            else
-                VideoStream->codec->sample_aspect_ratio = VideoStream->sample_aspect_ratio;
-        }
+        if (VideoDecoderCodecCtx->time_base.num>1000 && VideoDecoderCodecCtx->time_base.den==1)
+            VideoDecoderCodecCtx->time_base.den=1000;
 
-        if ((VideoDecoderCodec==NULL)||(avcodec_open2(VideoStream->codec,VideoDecoderCodec,NULL)<0)) return false;
-        LibavStartTime=LibavVideoFile->start_time;
+        if ((VideoDecoderCodec==NULL)||(avcodec_open2(VideoDecoderCodecCtx,VideoDecoderCodec,NULL)<0)) return false;
+        FFMPEGstartTime=FFMPEGvideoFile->start_time;
     }
     IsOpen=true;
     return IsOpen;
@@ -3982,20 +2970,11 @@ bool cMusicObject::CheckFormatValide(QWidget *Window) {
         IsOk=false;
 
     } else {
-        if (!((LibavAudioFile->streams[AudioStreamNumber]->codec->sample_fmt!=AV_SAMPLE_FMT_S16)||(LibavAudioFile->streams[AudioStreamNumber]->codec->sample_fmt!=AV_SAMPLE_FMT_U8))) {
+        if (!((FFMPEGaudioFile->streams[AudioStreamNumber]->codecpar->format!=AV_SAMPLE_FMT_S16)||(FFMPEGaudioFile->streams[AudioStreamNumber]->codecpar->format!=AV_SAMPLE_FMT_U8))) {
             QString ErrorMessage=QApplication::translate("MainWindow","This application support only audio track with unsigned 8 bits or signed 16 bits sample format","Error message")+"\n";
             CustomMessageBox(Window,QMessageBox::Critical,QApplication::translate("MainWindow","Error","Error message"),ShortName()+"\n\n"+ErrorMessage,QMessageBox::Close);
             IsOk=false;
         }
-
-        #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-        // check if sound is mono or stereo (libav 8 version can not reduce 5.1 to stereo)
-        if ((IsOk)&&(LibavAudioFile->streams[AudioStreamNumber]->codec->channels>2)) {
-            QString ErrorMessage=QApplication::translate("MainWindow","This application support only mono or stereo audio track","Error message")+"\n";
-            CustomMessageBox(Window,QMessageBox::Critical,QApplication::translate("MainWindow","Error","Error message"),ShortName()+"\n\n"+ErrorMessage,QMessageBox::Close);
-            IsOk=false;
-        }
-        #endif
     }
     // close file if it was opened
     CloseCodecAndFile();
@@ -4043,12 +3022,10 @@ bool cMusicObject::LoadFromXML(QDomElement *ParentElement,QString ElementName,QS
         if ((!QFileInfo(FileName).exists())&&(PathForRelativPath!="")) {
             FileName=QDir::cleanPath(QDir(PathForRelativPath).absoluteFilePath(FileName));
             // Fixes a previous bug in relative path
-            #ifndef Q_OS_WIN
             if (FileName.startsWith("/..")) {
                 if (FileName.contains("/home/")) FileName=FileName.mid(FileName.indexOf("/home/"));
                 if (FileName.contains("/mnt/"))  FileName=FileName.mid(FileName.indexOf("/mnt/"));
             }
-            #endif
         }
         if (GetInformationFromFile(FileName,AliasList,ModifyFlag)&&(CheckFormatValide(NULL))) {
             // Old format prior to ffDiaporama 2.2.2014.0308

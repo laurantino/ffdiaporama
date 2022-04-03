@@ -21,28 +21,10 @@
 // Include some common various class
 #include "cDeviceModelDef.h"
 
-// Remove error with MSVC and AV_TIME_BASE_Q
-#ifdef _MSC_VER
-    AVRational AV_TIME_BASE_Q={1, AV_TIME_BASE};
-#endif
-
-int AVLOGLEVEL=AV_LOG_ERROR;    // Default loglevel for libav
+int AVLOGLEVEL=AV_LOG_ERROR;    // Default loglevel for ffmpeg
 QMutex Mutex;
 
 //****************************************************************************************************************************************************************
-
-AVFrame *ALLOCFRAME() {
-    #if (FFMPEGVERSIONINT>=220)
-    return av_frame_alloc();
-    #else
-    return avcodec_alloc_frame();
-    #endif
-}
-
-void FREEFRAME(AVFrame **Buf) {
-    avcodec_free_frame(Buf);
-    *Buf=NULL;
-}
 
 /****************************************************************************
   Definition of image format supported by the application
@@ -386,11 +368,6 @@ struct sVideoCodecDef VIDEOCODECDEF[NBR_VIDEOCODECDEF]={
         "wmv2","Windows Media Video 8",                                                                 // ShortName[50], LongName[200]
         "",                                                                                             // PossibleBitrate
         {{""},{""}}                                                                                     // DefaultBitrate[2][NBR_SIZEDEF]
-    },{
-        false,false,AV_CODEC_ID_WMV3,VCODEC_WMV3,VCODECST_WMV3,                                         // IsFind,Codec_id,FFD_VCODEC,FFD_VCODECST
-        "wmv3","Windows Media Video 9",                                                                 // ShortName[50], LongName[200]
-        "",                                                                                             // PossibleBitrate
-        {{""},{""}}                                                                                     // DefaultBitrate[2][NBR_SIZEDEF]
     }
 };
 
@@ -418,7 +395,7 @@ struct sFormatDef FORMATDEF[VFORMAT_NBR]={
     {false,false, "webm",     "webm", "WEBM file format",             "VP8",                         "libvorbis#vorbis",                                                                "8000#11025#12000#16000#22050#24000#32000#44100#48000", "48000"},
     {false,false, "flv",      "flv",  "FLV Flash file format 2005",   "H263",                        "libmp3lame",                                                                      "44100",                                                "44100"},
     {false,false, "flv",      "flv",  "FLV Flash file format 2008",   "H264HQ#H264PQ",               "libfaac#aac#libvo_aacenc",                                                        "44100",                                                "44100"},
-    {false,false, "ogg",      "ogv",  "OGV Ogg/Theroa file format",   "THEORA#LIBTHEORA",            "libvorbis#vorbis",                                                                "8000#11025#12000#16000#22050#24000#32000#44100#48000", "48000"},
+    {false,false, "ogg",      "ogv",  "OGV Ogg/Theora file format",   "THEORA#LIBTHEORA",            "libvorbis#vorbis",                                                                "8000#11025#12000#16000#22050#24000#32000#44100#48000", "48000"},
     {false,false, "asf",      "wmv",  "ASF/Window Media Video format","",                            "",                                                                                "",                                                     ""}
 };
 
@@ -445,9 +422,9 @@ QString AllowMusicExtensions="wav#aac#adts#ac3#mp2#mp3#m4a#m4b#m4p#3g2#3ga#3gp#o
 
 //====================================================================================================================
 QString Previous;
-int     LastLibAvMessageLevel=0;
+int     LastFFMPEGmessageLevel=0;
 
-void LibAVLogCallback(void * /*ptr*/, int level, const char *fmt, va_list vargs) {
+void FFMPEGlogCallback(void * /*ptr*/, int level, const char *fmt, va_list vargs) {
 //    if (level>AVLOGLEVEL) return;
     // Crash if this is send !
     if (QString(fmt)==QString("rate control settings\n  %*s%u\n  %*s%u\n  %*s%u\n  %*s%u\n  %*s%d\n  %*s%p(%zu)\n  %*s%u\n")) return;
@@ -462,14 +439,14 @@ void LibAVLogCallback(void * /*ptr*/, int level, const char *fmt, va_list vargs)
 
         if ((End==10)||(End==13)) {
             while ((strlen(Buf)>0)&&((Buf[strlen(Buf)-1]==10)||(Buf[strlen(Buf)-1]==13))) Buf[strlen(Buf)-1]=0;
-            DisplayMsg=QString("LIBAV: ")+Previous+QString(Buf);
+            DisplayMsg=QString("FFMPEG: ")+Previous+QString(Buf);
             Previous  ="";
             if (level>=AV_LOG_DEBUG)            MessageLevel=LOGMSG_DEBUGTRACE;
                 else if (level>=AV_LOG_INFO)    MessageLevel=LOGMSG_INFORMATION;
                 else if (level>=AV_LOG_WARNING) MessageLevel=LOGMSG_WARNING;
                 else                            MessageLevel=LOGMSG_CRITICAL;
             ToLog(MessageLevel,DisplayMsg,"internal",true);
-            if (LastLibAvMessageLevel<MessageLevel) LastLibAvMessageLevel=MessageLevel;
+            if (LastFFMPEGmessageLevel<MessageLevel) LastFFMPEGmessageLevel=MessageLevel;
         } else Previous=Previous+QString(Buf);
     }
 }
@@ -479,7 +456,7 @@ void LibAVLogCallback(void * /*ptr*/, int level, const char *fmt, va_list vargs)
 QString GetAvErrorMessage(int ErrorCode) {
     if (ErrorCode>=0) return "";
     char Buf[2048];
-    if (av_strerror(ErrorCode,Buf,2048)==0) return QString("AV Error %1:%2").arg(ErrorCode).arg(QString().fromLocal8Bit(Buf));
+    if (av_strerror(ErrorCode,Buf,2048)==0) return QString("AVERROR %1:%2").arg(ErrorCode).arg(QString().fromLocal8Bit(Buf));
         else return QString("No error message for %1").arg(ErrorCode);
 }
 
@@ -490,7 +467,7 @@ QString GetAvErrorMessage(int ErrorCode) {
 cDeviceModelDef::cDeviceModelDef(bool IsGlobalConf,int IndexKey) {
     FromGlobalConf  =IsGlobalConf;                          // true if device model is defined in global config file
     FromUserConf    =!IsGlobalConf;                         // true if device model is defined in user config file
-    IsFind          =false;                                 // true if device model format is supported by installed version of libav
+    IsFind          =false;                                 // true if device model format is supported by installed version of ffmpeg
     DeviceIndex     =IndexKey;                              // Device number index key
     DeviceName      ="";                                    // long name for the device model
     DeviceType      =0;                                     // device type
@@ -723,15 +700,12 @@ void cDeviceModelList::TranslatRenderType() {
 
 //====================================================================================================================
 
-bool cDeviceModelList::InitLibav() {
-    // Next step : start libav
-    ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Starting libav..."));
-    avfilter_register_all();
-    avcodec_register_all();
-    av_register_all();
+bool cDeviceModelList::InitFFMPEG() {
+    // Next step : start ffmpeg
+    ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Starting ffmpeg..."));
     avformat_network_init();
 
-    av_log_set_callback(LibAVLogCallback);
+    av_log_set_callback(FFMPEGlogCallback);
     switch (LogMsgLevel) {
         case LOGMSG_DEBUGTRACE  : AVLOGLEVEL=AV_LOG_DEBUG;   break;
         case LOGMSG_INFORMATION : AVLOGLEVEL=AV_LOG_VERBOSE; break;
@@ -743,8 +717,9 @@ bool cDeviceModelList::InitLibav() {
     av_log_set_level(AV_LOG_DEBUG);
 
     // Check codec to know if they were found
-    AVCodec *p=NULL;
-    while ((p=av_codec_next(p))) {
+    const AVCodec *p=NULL;
+    void *i=0;
+    while ((p=av_codec_iterate(&i))) {
         if (av_codec_is_encoder(p)) {
             if (p->type==AVMEDIA_TYPE_AUDIO) {
                 for (int i=0;i<NBR_AUDIOCODECDEF;i++) if ((p->id==AUDIOCODECDEF[i].Codec_id)&&(!AUDIOCODECDEF[i].IsFind)) {
@@ -769,9 +744,10 @@ bool cDeviceModelList::InitLibav() {
         }
     }
 
-    // Check formats to know if they were found
-    AVOutputFormat *ofmt=NULL;
-    while ((ofmt=av_oformat_next(ofmt))) {
+    // Check format to know if they were found
+    const AVOutputFormat *ofmt=NULL;
+    i=0;
+    while ((ofmt=av_muxer_iterate(&i))) {
         for (int i=0;i<VFORMAT_NBR;i++) if (strcmp(ofmt->name,FORMATDEF[i].ShortName)==0) {
             QString     AllowedCodec=FORMATDEF[i].PossibleVideoCodec;
             QString     Codec="";
@@ -812,13 +788,14 @@ bool cDeviceModelList::InitLibav() {
             }
             FORMATDEF[i].IsFind=IsFindAudioCodec && IsFindVideoCodec;
             if (i==10) FORMATDEF[i].IsRead=(AUDIOCODECDEF[9].IsFind || AUDIOCODECDEF[9].IsRead || AUDIOCODECDEF[10].IsFind || AUDIOCODECDEF[10].IsRead)&&
-                                           (VIDEOCODECDEF[9].IsFind || VIDEOCODECDEF[9].IsRead || VIDEOCODECDEF[10].IsFind || VIDEOCODECDEF[10].IsRead || VIDEOCODECDEF[11].IsFind || VIDEOCODECDEF[11].IsRead);
+                                           (VIDEOCODECDEF[9].IsFind || VIDEOCODECDEF[9].IsRead || VIDEOCODECDEF[10].IsFind || VIDEOCODECDEF[10].IsRead);
         }
     }
 
     // Check audio format to know if they was finded
     ofmt=NULL;
-    while ((ofmt=av_oformat_next(ofmt))) {
+    i=0;
+    while ((ofmt=av_muxer_iterate(&i))) {
         for (int i=0;i<NBR_AFORMAT;i++) if (strcmp(ofmt->name,AUDIOFORMATDEF[i].ShortName)==0) {
             QString     AllowedCodec=AUDIOFORMATDEF[i].PossibleAudioCodec;
             QString     Codec="";

@@ -35,7 +35,7 @@
 
 wgt_QVideoPlayer::wgt_QVideoPlayer(QWidget *parent) : QWidget(parent),ui(new Ui::wgt_QVideoPlayer) {
     ui->setupUi(this);
-    AudioBuf                = (u_int8_t *)malloc(AUDIOBUFSIZE);
+    AudioBuf                = (uint8_t *)malloc(AUDIOBUFSIZE);
     AudioBufSize            = 0;
 
     FLAGSTOPITEMSELECTION   = NULL;
@@ -61,13 +61,9 @@ wgt_QVideoPlayer::wgt_QVideoPlayer(QWidget *parent) : QWidget(parent),ui(new Ui:
     ui->MovieFrame->setText("");
     ui->MovieFrame->setAttribute(Qt::WA_OpaquePaintEvent);
 
-    #if QT_VERSION >= 0x050000
     ui->VideoPlayerVolumeBT->setIcon(style()->standardIcon(QStyle::SP_MediaVolume));
     ui->VideoPlayerVolumeBT->setPopupMode(QToolButton::InstantPopup);
     connect(ui->VideoPlayerVolumeBT,SIGNAL(pressed()),this,SLOT(s_VideoPlayerVolume()));
-    #else
-    ui->VideoPlayerVolumeBT->setVisible(false);
-    #endif
 
     connect(&Timer,SIGNAL(timeout()),this,SLOT(s_TimerEvent()));
     connect(ui->VideoPlayerPlayPauseBT,SIGNAL(clicked()),this,SLOT(s_VideoPlayerPlayPauseBT()));
@@ -176,12 +172,10 @@ void wgt_QVideoPlayer::s_VideoPlayerVolume() {
 }
 
 void wgt_QVideoPlayer::s_VolumeChanged(int newValue) {
-    #if QT_VERSION >= 0x050000
     audio_outputStream->setVolume(qreal(newValue)/100);
     VolumeLabel->setNum(newValue);
     ApplicationConfig->PreviewSoundVolume=qreal(newValue)/100;
     emit VolumeChanged();
-    #endif
 }
 
 //============================================================================================
@@ -226,9 +220,7 @@ void wgt_QVideoPlayer::SetAudioFPS() {
     audio_outputStream->setBufferSize(MixedMusic.NbrPacketForFPS*MixedMusic.SoundPacketSize*BUFFERING_NBR_AUDIO_FRAME);
     audio_outputDevice=audio_outputStream->start();
     AudioPlayed=0;
-    #if QT_VERSION >= 0x050000
     audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-    #endif
 }
 
 //============================================================================================
@@ -278,12 +270,11 @@ void wgt_QVideoPlayer::SetPlayerToPlay() {
                                      break;
         case QAudio::StoppedState:   audio_outputDevice=audio_outputStream->start();
                                      AudioPlayed=0;
-                                     #if QT_VERSION >= 0x050000
                                      audio_outputStream->setVolume(ApplicationConfig->PreviewSoundVolume);
-                                     #endif
                                      break;
         case QAudio::ActiveState:    qDebug()<<"ActiveState";                           break;
         case QAudio::IdleState:      qDebug()<<"IdleState";                             break;
+        case QAudio::InterruptedState:  qDebug()<<"InterruptedState";                   break;
     }
     Timer.start(int(double(1000)/ApplicationConfig->PreviewFPS)/2);   // Start Timer
     PlayerMutex.unlock();
@@ -466,12 +457,7 @@ void wgt_QVideoPlayer::s_TimerEvent() {
 
     TimerTick=!TimerTick;
 
-    #ifdef Q_OS_WIN
-    // Trylock is always true on Windows instead of unix/linux system
-    if (TimerTick) {
-    #else
     if (!PlayerMutex.tryLock()) { if (!TimerTick) return; else {
-    #endif
         /*
         // specific case for windows because never a timer event can happens if a previous timer event was not ended
         // so next trylock is always true
@@ -488,11 +474,7 @@ void wgt_QVideoPlayer::s_TimerEvent() {
         }
         */
     }
-    #ifdef Q_OS_WIN
-    PlayerMutex.lock();
-    #else
     return;}
-    #endif
 
     if (ThreadPrepareVideo.isRunning()) ThreadPrepareVideo.waitForFinished();
     if (ThreadPrepareImage.isRunning()) ThreadPrepareImage.waitForFinished();

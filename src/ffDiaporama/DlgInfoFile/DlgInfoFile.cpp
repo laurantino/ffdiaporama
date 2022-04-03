@@ -162,11 +162,7 @@ void DlgInfoFile::DoInitDialog() {
 
         //**************** Additionnals
         ui->tableWidget->setUpdatesEnabled(false);
-        #if QT_VERSION >= 0x050000
         ui->tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-        #else
-        ui->tableWidget->verticalHeader()->setResizeMode(QHeaderView::ResizeToContents);
-        #endif
         if (MediaFile->ObjectType==OBJECTTYPE_FFDFILE) {
             TempExtProperties.append(QString("%1##%2").arg(QApplication::translate("QCustomFolderTable","Image Geometry","Column header")).arg(MediaFile->GetImageSizeStr(cBaseMediaFile::GEOONLY)));
             TempExtProperties.append(QString("%1##%2").arg(QApplication::translate("QCustomFolderTable","Title","Column header")).arg(((cffDProjectFile *)MediaFile)->Title));

@@ -1,0 +1,10 @@
+moc_QCustomComboBox.cpp
+moc_QCustomHorizSplitter.cpp
+moc_cBackgroundComboBox.cpp
+moc_cBaseAppConfig.cpp
+moc_cBrushComboBox.cpp
+moc_cColorComboBox.cpp
+moc_cGrdOrientationComboBox.cpp
+moc_cSpeedWaveComboBox.cpp
+moc_cTexteFrameComboBox.cpp
+moc_predefs.h

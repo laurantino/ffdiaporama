@@ -24,16 +24,6 @@
 #include "BasicDefines.h"
 #include <QAction>
 
-#if QT_VERSION < 0x050000
-    #ifdef Q_OS_WIN
-    void    SetLFHeap();
-    #endif
-#endif
-
-#ifdef Q_OS_WIN
-    extern bool IsWindowsXP;    // True if OS is Windows/XP
-#endif
-
 //====================================================================
 
 // Note : Application version and revision are in BUILDVERSION.txt
@@ -53,18 +43,6 @@
 #define THUMBMODEL_ROOTNAME                 "Thumbnail"
 // Name of element in the thumbnail xml files
 #define THUMBMODEL_ELEMENTNAME              "ProjectThumbnail"
-
-// Application version : url to file on internet
-
-    // devel version
-#define BUILDVERSION_WEBURL                 "http://ffdiaporama.tuxfamily.org/Devel/BUILDVERSION.txt"
-#define DOWNLOADPAGE                        "http://ffdiaporama.tuxfamily.org/?page_id=3635&lang=%1"
-#define LOCAL_WEBURL                        "http://download.tuxfamily.org/ffdiaporama/Devel/"
-
-    // stable version
-//#define BUILDVERSION_WEBURL                 "http://ffdiaporama.tuxfamily.org/Stable/BUILDVERSION.txt"
-//#define DOWNLOADPAGE                        "http://ffdiaporama.tuxfamily.org/?page_id=178&lang=%1"
-//#define LOCAL_WEBURL                        "http://download.tuxfamily.org/ffdiaporama/Stable/"
 
 // Global values
 extern QString  CurrentAppName;             // Application name (including devel, beta, ...)

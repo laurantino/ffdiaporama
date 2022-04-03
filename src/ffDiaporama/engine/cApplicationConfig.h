@@ -33,8 +33,6 @@
 #include <QDomElement>
 #include <QDomDocument>
 #include <QMainWindow>
-#include <QNetworkReply>
-#include <QNetworkAccessManager>
 
 // Include some common various class
 #include "cSaveWindowPosition.h"
@@ -46,9 +44,7 @@
 #include "_Transition.h"
 #include "_Model.h"
 
-#if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-    bool SearchRasterMode();
-#endif
+bool SearchRasterMode();
 
 //============================================
 
@@ -254,25 +250,6 @@ struct sDefaultBlockCoord {
 #define DOWNLOADTIMEOUT 30000
 
 class cApplicationConfig;
-class DownloadObject : public QObject {
-Q_OBJECT
-public:
-    cApplicationConfig  *ApplicationConfig;
-    bool                    Status;
-    QNetworkReply           *GetNewtorkDataReply;
-    QByteArray              NetworkData;
-    QString                 NetworkDataFileName;
-    QNetworkAccessManager   *NetworkManager;
-    QEventLoop              *loop;
-    QTimer                  TimeOutTimer;
-
-    explicit                DownloadObject(QString FileName,QObject *parent);
-                            ~DownloadObject();
-
-private slots:
-    void                    httpGetDataFinished();
-    void                    httpGetDataReadyRead();
-};
 
 //====================================================================================================================
 // Application config class
@@ -300,7 +277,6 @@ public:
     int64_t                 CreditTitleModelsNextNumber[3];
 
     // Preferences
-    bool                    OpenWEBNewVersion;                          // Offer to open the download Web page when a new version is available
     bool                    RasterMode;                                 // Enable or disable raster mode [Linux only]
     bool                    RestoreWindow;                              // If true, restore window state and position at startup
     bool                    RememberLastDirectories;                    // If true, Remember all directories for future use
@@ -309,10 +285,6 @@ public:
     bool                    PartitionMode;                              // If true, partition mode is on
     int                     WindowDisplayMode;
     bool                    WikiFollowInterface;                        // If true Wiki follow the interface
-    bool                    UseNetworkProxy;                            // If true use a proxy to access to internet
-    QString                 NetworkProxy;                               // Network proxy address
-    int                     NetworkProxyPort;                           // Network proxy port
-    QString                 NetworkProxyUser,NetworkProxyPWD;           // Network proxy login/pwd
 
     // Editor options
     bool                    AppendObject;                               // If true, new object will be append at the end of the diaporama, if false, new object will be insert after current position
@@ -434,7 +406,6 @@ public:
     explicit                cApplicationConfig(QMainWindow *TopLevelWindow,QString AllowedWEBLanguage);
                             ~cApplicationConfig();
 
-    virtual bool            DownloadFile(QString FileName);
     virtual QString         GetFilterForMediaFile(FilterFile type);
     virtual void            InitValues();
     virtual bool            InitConfigurationValues(QString ForceLanguage);
@@ -443,8 +414,6 @@ public:
 
     virtual QString         GetValideWEBLanguage(QString Language);
     virtual void            PreloadSystemIcons();
-
-    QNetworkAccessManager   *GetNetworkAccessManager(QObject *parent);
 
     QStringList             LoadBrowserFavoritesFromDabase();
     void                    SaveBrowserFavoritesToDabase(QStringList BrowserFavorites);

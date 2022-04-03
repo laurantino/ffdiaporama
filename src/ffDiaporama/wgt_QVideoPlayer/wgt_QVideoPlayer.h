@@ -26,12 +26,7 @@
 #include "engine/_Diaporama.h"
 #include "CustomCtrl/QCustomRuler.h"
 #include "CustomCtrl/QMovieLabel.h"
-
-#if QT_VERSION >= 0x050000
 #include <QtMultimedia/QAudioOutput>
-#else
-#include <QAudioOutput>
-#endif
 
 namespace Ui {
     class wgt_QVideoPlayer;
@@ -74,7 +69,7 @@ public:
     bool                    TimerTick;              // To use timer 1 time for 2 call
 
     QMutex                  PlayerMutex;
-    u_int8_t                *AudioBuf;
+    uint8_t                *AudioBuf;
     int                     AudioBufSize;
     QAudioOutput            *audio_outputStream;
     QIODevice               *audio_outputDevice;

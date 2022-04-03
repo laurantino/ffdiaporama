@@ -41,7 +41,7 @@ bool toAssending(const cStyleCollectionItem &Item1 ,const cStyleCollectionItem &
 cStyleCollectionItem::cStyleCollectionItem(bool IsGlobalConf,int IndexKey,QString TheStyleName,QString TheStyleDef) {
     FromGlobalConf  =IsGlobalConf;                          // true if device model is defined in global config file
     FromUserConf    =!IsGlobalConf;                         // true if device model is defined in user config file
-    IsFind          =false;                                 // true if device model format is supported by installed version of libav
+    IsFind          =false;                                 // true if device model format is supported by installed version of ffmpeg
     StyleIndex      =IndexKey;                              // Style number index key
     StyleName       =TheStyleName;                          // Style name
     StyleDef        =TheStyleDef;                           // Style definition
@@ -89,10 +89,6 @@ bool cStyleCollectionItem::LoadFromXML(QDomElement domDocument,QString ElementNa
         if (IsUserConfigFile) FromUserConf=true;
         StyleName=Element.attribute("StyleName");
         StyleDef =Element.attribute("StyleDefinition");
-        #ifdef Q_OS_WIN
-        if (StyleDef.endsWith("###FontName:Serif"))        StyleDef.replace("###FontName:Serif","###FontName:Times New Roman");
-        if (StyleDef.endsWith("###FontName:Sans Serif"))   StyleDef.replace("###FontName:Sans Serif","###FontName:Arial");
-        #endif
 
         if (FromUserConf==false) {
             BckStyleName=StyleName;
@@ -157,7 +153,7 @@ void cStyleCollection::ApplyUndo(cStyleCollection *UndoCollection) {
 //************************************************
 
 void cStyleCollection::SortList() {
-    qSort(Collection.begin(),Collection.end(),toAssending);
+    std::sort(Collection.begin(),Collection.end(),toAssending);
 }
 
 //************************************************

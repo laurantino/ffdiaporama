@@ -87,9 +87,7 @@ QCustomDialog::QCustomDialog(cApplicationConfig *ApplicationConfig,QWidget *pare
     UndoBt                  =NULL;
     HelpBt                  =NULL;
 
-    #ifndef Q_OS_WIN
     setWindowFlags((windowFlags()|Qt::CustomizeWindowHint|Qt::WindowSystemMenuHint|Qt::WindowMaximizeButtonHint)&(~Qt::WindowMinimizeButtonHint));
-    #endif
     setAttribute(Qt::WA_AlwaysShowToolTips);
     setWindowModality(Qt::WindowModal);
 }
@@ -250,17 +248,10 @@ void QCustomDialog::DoInitTableWidget(QTableWidget *Table,QString TableColumns) 
     Table->verticalHeader()->hide();
     Table->verticalHeader()->setStretchLastSection(false);
     Table->verticalHeader()->setSortIndicatorShown(false);
-    #if QT_VERSION >= 0x050000
     Table->horizontalHeader()->setSectionsClickable(false);
     Table->horizontalHeader()->setSectionsMovable(false);
     Table->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);          //Fixed because ResizeToContents will be done after table filling
     Table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);            // Fixed because ResizeToContents will be done after table filling
-    #else
-    Table->horizontalHeader()->setClickable(false);
-    Table->horizontalHeader()->setMovable(false);
-    Table->horizontalHeader()->setResizeMode(QHeaderView::Fixed);          //Fixed because ResizeToContents will be done after table filling
-    Table->verticalHeader()->setResizeMode(QHeaderView::Fixed);            // Fixed because ResizeToContents will be done after table filling
-    #endif
     Table->setShowGrid(true);                  // Ensure grid display
     Table->setWordWrap(false);                 // Ensure no word wrap
     Table->setTextElideMode(Qt::ElideNone);    // Ensure no line ellipsis (...)
@@ -282,20 +273,12 @@ QTableWidgetItem *QCustomDialog::CreateItem(QString ItemText,int Alignment,QBrus
 // utility function to resize columns in a table widget
 
 void QCustomDialog::DoResizeColumnsTableWidget(QTableWidget *Table) {
-    #if QT_VERSION >= 0x050000
     Table->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    #else
-    Table->horizontalHeader()->setResizeMode(QHeaderView::Fixed);
-    #endif
     Table->setVisible(false);                      // To ensure all items of all columns are used to compute size
     Table->resizeColumnsToContents();              // Resize column widht
     Table->resizeRowsToContents();                 // Resize row height
     Table->setVisible(true);                       // To allow display
-    #if QT_VERSION >= 0x050000
     Table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    #else
-    Table->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
-    #endif
 }
 
 //====================================================================================================================

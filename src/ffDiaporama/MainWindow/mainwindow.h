@@ -29,8 +29,6 @@
 // Include some common various class
 #include "DlgWorkingTask/DlgWorkingTask.h"
 
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QLocalSocket>
 #include <QLocalServer>
 
@@ -108,7 +106,6 @@ private slots:
     // Event functions
     void    s_Event_ClipboardChanged();                     // Something have changed in the clipboard
     void    s_Event_ToolbarChanged(int MenuIndex);          // User change current toolbar TAB
-    void    DoCheckBUILDVERSION(QNetworkReply*);            // Build version was downloaded from internet
 
     // Timeline & player
     void    s_Event_PlayPause();
@@ -151,7 +148,6 @@ private slots:
     void    s_Action_AddTitle();
     void    s_Action_AddEmptyTitle();
     void    s_Action_AddAutoTitleSlide();
-    void    s_Action_AddGMap();
     void    s_Action_AddProject();
     void    DoAddFile();
     void    DoAppendFile();
@@ -207,7 +203,6 @@ private:
     // Utility functions
     void    UpdateChapterInfo();
     void    toolTipTowhatsThis(QObject *StartObj);
-    bool    DownloadFile(QString FileName);
 
     Ui::MainWindow                          *ui;
     QList<cSlideThumbsTable::TRResKeyItem>  ResKeyList;     // Ressource key mapping table

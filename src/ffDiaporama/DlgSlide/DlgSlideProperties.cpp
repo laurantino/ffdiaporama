@@ -28,7 +28,6 @@
 #include "cTextFrame.h"
 #include "cTexteFrameComboBox.h"
 
-#include "engine/cLocation.h"
 #include "DlgImage/DlgImageCorrection.h"
 #include "DlgFileExplorer/DlgFileExplorer.h"
 #include "DlgRuler/DlgRulerDef.h"
@@ -80,7 +79,6 @@ DlgSlideProperties::DlgSlideProperties(cDiaporamaObject *DiaporamaObject,cApplic
     InteractiveZone->MagneticRuler  =ApplicationConfig->SlideRuler;
     InteractiveZone->DisplayW       =DisplayW;
     InteractiveZone->DisplayH       =DisplayH;
-    RedoneStyleCoordinate           =false;         // specific flag for GMapsObject
     CurrentShot                     =NULL;
     FramingCB_CurrentBrush          =NULL;
     FramingCB_CurrentShot           =-1;
@@ -99,7 +97,7 @@ DlgSlideProperties::~DlgSlideProperties() {
         DlgWorkingTaskDialog=NULL;
     }
     delete ui;
-    CurrentSlide->Parent->CloseUnusedLibAv(CurrentSlide->Parent->CurrentCol);
+    CurrentSlide->Parent->CloseUnusedFFMPEG(CurrentSlide->Parent->CurrentCol);
 }
 
 //====================================================================================================================
@@ -182,7 +180,6 @@ void DlgSlideProperties::DoInitDialog() {
     ui->actionSaveAsProjectTitleModel->setIconVisibleInMenu(true);
     ui->actionSaveAsCptTitleModels->setIconVisibleInMenu(true);
     ui->actionSaveAsCreditTitleModels->setIconVisibleInMenu(true);
-    ui->actionAddGMapsMap->setIconVisibleInMenu(true);
     ui->actionAddImageClipboard->setIconVisibleInMenu(true);
 
     ShotTable->setRowCount(1);
@@ -262,7 +259,6 @@ void DlgSlideProperties::DoInitDialog() {
 
     connect(ui->AddSpecialBlock,SIGNAL(pressed()),this,SLOT(s_BlockTable_AddSpecialBlock()));
     connect(ui->actionAddImageClipboard,SIGNAL(triggered()),this,SLOT(s_BlockTable_AddImageClipboard()));
-    connect(ui->actionAddGMapsMap,SIGNAL(triggered()),this,SLOT(s_BlockTable_AddGMapsMapBlock()));
 
     // Style buttons
     connect(ui->FramingStyleCB,SIGNAL(itemSelectionHaveChanged()),this,SLOT(s_BlockSettings_ChangeFramingStyle()));
@@ -650,11 +646,6 @@ void DlgSlideProperties::RefreshControls(bool UpdateInteractiveZone) {
                 ui->actionEditImage->setToolTip(QApplication::translate("DlgSlideProperties","Define framing and correction of image vector","Tooltip"));
                 ui->actionEditImage->setIcon(QIcon(ICON_EDIT_IMAGE));
                 break;
-            case OBJECTTYPE_GMAPSMAP:
-                ui->actionEditImage->setText(QApplication::translate("DlgSlideProperties","Modify Google Maps map","Action title in slide edit dialog + dialog title of image edit dialog"));
-                ui->actionEditImage->setToolTip(QApplication::translate("DlgSlideProperties","Define Modify Google Maps map and framing and correction of map","Tooltip"));
-                ui->actionEditImage->setIcon(QIcon(ICON_EDIT_GMAPS));
-                break;
             default:    break;  // avoid warning
         }
     }
@@ -927,7 +918,7 @@ void DlgSlideProperties::s_ShotTable_MoveLeft() {
     AppendPartialUndo(UNDOACTION_FULL_SLIDE,ShotTable,true);
 
     if (CurrentShotNbr>0) {
-        CurrentSlide->List.swap(CurrentShotNbr,CurrentShotNbr-1);
+        CurrentSlide->List.swapItemsAt(CurrentShotNbr,CurrentShotNbr-1);
         ShotTable->setUpdatesEnabled(false);
         ShotTable->SetCurrentCell(CurrentShotNbr-1);
         ShotTable->setUpdatesEnabled(true);  // Reset timeline painting
@@ -941,7 +932,7 @@ void DlgSlideProperties::s_ShotTable_MoveRight() {
     AppendPartialUndo(UNDOACTION_FULL_SLIDE,ShotTable,true);
 
     if (CurrentShotNbr<CurrentSlide->List.count()-1) {
-        CurrentSlide->List.swap(CurrentShotNbr+1,CurrentShotNbr);
+        CurrentSlide->List.swapItemsAt(CurrentShotNbr+1,CurrentShotNbr);
         ShotTable->setUpdatesEnabled(false);
         ShotTable->SetCurrentCell(CurrentShotNbr+1);
         ShotTable->setUpdatesEnabled(true);  // Reset timeline painting
@@ -1120,7 +1111,6 @@ void DlgSlideProperties::s_BlockTable_ItemRightClicked(QMouseEvent *) {
         ContextMenu->addAction(ui->actionAddTextBlock);
         ContextMenu->addAction(ui->actionAddFile);
         ContextMenu->addAction(ui->actionAddImageClipboard);
-        ContextMenu->addAction(ui->actionAddGMapsMap);
         ContextMenu->exec(QCursor::pos());
         delete ContextMenu;
     } else if (BlockSelectMode==SELECTMODE_ONE) {
@@ -1411,7 +1401,7 @@ void DlgSlideProperties::s_BlockTable_AddFilesBlock() {
             DlgWorkingTaskDialog->StopText2();
             // Prepare default values
             ((cVideoFile *)MediaObject)->EndPos=((cVideoFile *)MediaObject)->GetRealDuration();
-            if (((cVideoFile *)MediaObject)->LibavStartTime>0) ((cVideoFile *)MediaObject)->StartPos=QTime(0,0,0,0).addMSecs(int64_t((double(((cVideoFile *)MediaObject)->LibavStartTime)/AV_TIME_BASE)*1000));
+            if (((cVideoFile *)MediaObject)->FFMPEGstartTime>0) ((cVideoFile *)MediaObject)->StartPos=QTime(0,0,0,0).addMSecs(int64_t((double(((cVideoFile *)MediaObject)->FFMPEGstartTime)/AV_TIME_BASE)*1000));
         }
         DoAddBlock(MediaObject,PositionToInsert);
         PositionToInsert++;
@@ -1491,27 +1481,9 @@ void DlgSlideProperties::DoAddBlock(cBaseMediaFile *MediaObject,int PositionToIn
 void DlgSlideProperties::s_BlockTable_AddSpecialBlock() {
     QMenu *ContextMenu=new QMenu(this);
     ContextMenu->addAction(ui->actionAddImageClipboard);
-    ContextMenu->addAction(ui->actionAddGMapsMap);
     ContextMenu->exec(QCursor::pos());
     delete ContextMenu;
     ui->AddSpecialBlock->setDown(false);
-}
-
-//====================================================================================================================
-
-void DlgSlideProperties::s_BlockTable_AddGMapsMapBlock() {
-    // Create an GMapsMap wrapper
-    cGMapsMap   *MediaObject=new cGMapsMap(ApplicationConfig);
-    MediaObject->CreatDateTime=QDateTime().currentDateTime();
-    MediaObject->CreateDefaultImage(CurrentSlide->Parent);   // create default image
-    MediaObject->GetInformationFromFile("",NULL,NULL,-1);
-    DoAddBlock(MediaObject,CurrentSlide->ObjectComposition.List.count());
-    // Reset thumbs if needed
-    ResetThumbs(true);
-    // Reset blocks table
-    RefreshBlockTable(CurrentSlide->ObjectComposition.List.count()-1);
-    RedoneStyleCoordinate=true;
-    QTimer::singleShot(250,this,SLOT(s_BlockSettings_ImageEditCorrect()));    // Append "Open image editor" to the message queue
 }
 
 //====================================================================================================================
@@ -1684,7 +1656,8 @@ void DlgSlideProperties::s_BlockSettings_ImageEditCorrect() {
     int Position=0;
     // Compute position of video
     if (ISVIDEO(CurrentBrush)) {
-        Position=QTime(0,0,0,0).msecsTo(((cVideoFile*)&CurrentBrush->MediaObject)->StartPos);
+        cVideoFile *video = static_cast<cVideoFile*>(CurrentBrush->MediaObject);
+        Position=QTime(0,0,0,0).msecsTo(video->StartPos);
         for (int i=0;i<ShotTable->currentColumn();i++) for (int j=0;j<CurrentSlide->List[i]->ShotComposition.List.count();j++)
           if ((CurrentSlide->List[i]->ShotComposition.List[j]->IndexKey==CurrentCompoObject->IndexKey)&&
               (CurrentSlide->List[i]->ShotComposition.List[j]->IsVisible)
@@ -1701,12 +1674,6 @@ void DlgSlideProperties::s_BlockSettings_ImageEditCorrect() {
                            CurrentSlide->Parent->ImageGeometry,CurrentSlide->Parent->ImageAnimSpeedWave,ApplicationConfig,this);
     Dlg.InitDialog();
     if (Dlg.exec()==0) {
-
-        // Redone application of styles for coordinates (specific to GMaps object when creating)
-        if (RedoneStyleCoordinate) {
-            CurrentCompoObject->ApplyAutoCompoSize(ApplicationConfig->DefaultBlockBA[CurrentCompoObject->BackgroundBrush->GetImageType()].AutoCompo,CurrentSlide->Parent->ImageGeometry);
-            RedoneStyleCoordinate=false;
-        }
 
         FramingCB_CurrentBrush   =NULL; // To force a refresh of ui->FramingCB !
         CurrentBrush->AspectRatio=CurrentBrush->AspectRatio;

@@ -51,17 +51,10 @@ DlgMusicProperties::~DlgMusicProperties() {
 
 void DlgMusicProperties::DoInitDialog() {
     // Init embeded widgets
-    #if QT_VERSION >= 0x050000
-        ui->PlayListTable->horizontalHeader()->setSectionResizeMode(0,QHeaderView::ResizeToContents);
-        ui->PlayListTable->horizontalHeader()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
-        ui->PlayListTable->horizontalHeader()->setSectionResizeMode(2,QHeaderView::ResizeToContents);
-        ui->PlayListTable->horizontalHeader()->setSectionResizeMode(3,QHeaderView::ResizeToContents);
-    #else
-        ui->PlayListTable->horizontalHeader()->setResizeMode(0,QHeaderView::ResizeToContents);
-        ui->PlayListTable->horizontalHeader()->setResizeMode(1,QHeaderView::ResizeToContents);
-        ui->PlayListTable->horizontalHeader()->setResizeMode(2,QHeaderView::ResizeToContents);
-        ui->PlayListTable->horizontalHeader()->setResizeMode(3,QHeaderView::ResizeToContents);
-    #endif
+    ui->PlayListTable->horizontalHeader()->setSectionResizeMode(0,QHeaderView::ResizeToContents);
+    ui->PlayListTable->horizontalHeader()->setSectionResizeMode(1,QHeaderView::ResizeToContents);
+    ui->PlayListTable->horizontalHeader()->setSectionResizeMode(2,QHeaderView::ResizeToContents);
+    ui->PlayListTable->horizontalHeader()->setSectionResizeMode(3,QHeaderView::ResizeToContents);
     RefreshControl(true);
 
     // Define handler
@@ -173,7 +166,7 @@ void DlgMusicProperties::SetItem(int row,int MusicIndex) {
 
     Item=new QTableWidgetItem(DiaporamaObject->MusicList[MusicIndex]->GetDuration().toString("hh:mm:ss.zzz")+"/"+DiaporamaObject->MusicList[MusicIndex]->GetRealDuration().toString("hh:mm:ss.zzz"));
     Item->setTextAlignment(Qt::AlignHCenter|Qt::AlignVCenter);
-    if (!DiaporamaObject->MusicList[MusicIndex]->IsComputedAudioDuration) Item->setTextColor(Qt::red);
+    if (!DiaporamaObject->MusicList[MusicIndex]->IsComputedAudioDuration) Item->setForeground(Qt::red);
     ui->PlayListTable->setItem(row,1,Item);
 
     QComboBox *InternalCB=new QComboBox(ui->PlayListTable);
@@ -356,7 +349,7 @@ void DlgMusicProperties::s_PlayListTable_SelectionChanged() {
 void DlgMusicProperties::s_UpMusic() {
     int CurIndex=ui->PlayListTable->currentRow();
     if (CurIndex<1) return;
-    DiaporamaObject->MusicList.swap(CurIndex,CurIndex-1);
+    DiaporamaObject->MusicList.swapItemsAt(CurIndex,CurIndex-1);
     RefreshControl(true);
     ui->PlayListTable->setCurrentCell(CurIndex-1,0);
 }
@@ -366,7 +359,7 @@ void DlgMusicProperties::s_UpMusic() {
 void DlgMusicProperties::s_DownMusic() {
     int CurIndex=ui->PlayListTable->currentRow();
     if ((CurIndex<0)||(CurIndex>ui->PlayListTable->rowCount()-1)) return;
-    DiaporamaObject->MusicList.swap(CurIndex,CurIndex+1);
+    DiaporamaObject->MusicList.swapItemsAt(CurIndex,CurIndex+1);
     RefreshControl(true);
     ui->PlayListTable->setCurrentCell(CurIndex+1,0);
 }

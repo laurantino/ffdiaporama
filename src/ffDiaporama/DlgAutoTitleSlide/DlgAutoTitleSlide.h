@@ -36,7 +36,6 @@ public:
     QString             OldName;
     bool                IsCreation;
     QTimer              Timer;
-    bool                IsLocationChanged;
 
     explicit DlgAutoTitleSlide(bool IsCreation,cDiaporamaObject *DiaporamaObject,cApplicationConfig *ApplicationConfig,QWidget *parent = 0);
     ~DlgAutoTitleSlide();
@@ -65,9 +64,6 @@ private slots:
     void                s_ChSlideCatCB(int);
     void                s_ChapterNameChanged(QString);
     void                s_ChapterDateChanged();
-    void                SelectLocation();
-    void                ClearLocation();
-    void                OverrideLocationCBChanged(int);
     void                ProjectProperties();
 
 private:

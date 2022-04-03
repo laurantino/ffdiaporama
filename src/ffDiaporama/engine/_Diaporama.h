@@ -298,7 +298,6 @@ public:
     QDate                   ChapterEventDate;           // Chapter event date (if OverrideProjectEventDate is true)
     bool                    OverrideChapterLongDate;    // if true then chapter long date is different from project long date
     QString                 ChapterLongDate;            // Chapter long date (if OverrideChapterLongDate is true)
-    void                    *ChapterLocation;           // Chapter location (NULL if same as project)
 
     // Background definition
     bool                    BackgroundType;             // Background type : false=same as precedent - true=new background definition
@@ -487,12 +486,11 @@ public:
     void                    DoAssembly(double PCT,cDiaporamaObjectInfo *Info,int W,int H,QImage::Format QTFMT=QImage::Format_ARGB32_Premultiplied);
 
     // Memory
-    void                    CloseUnusedLibAv(int CurrentCell);
+    void                    CloseUnusedFFMPEG(int CurrentCell);
 
     void                    CreateObjectContextList(cDiaporamaObjectInfo *Info,int W,int H,bool IsCurrentObject,bool PreviewMode,bool AddStartPos,QList<cCompositionObjectContext *> &PreparedBrushList,QObject *Parent);
     void                    PrepareImage(cDiaporamaObjectInfo *Info,int W,int H,bool IsCurrentObject,bool AddStartPos,QList<cCompositionObjectContext *> &PreparedBrushList);
 
-    void                    UpdateGMapsObject(bool ProposeAll=false);
 };
 
 #endif // CDIAPORAMA_H

@@ -21,9 +21,7 @@
 // Specific inclusions
 #include "_Diaporama.h"
 #include "_Variables.h"
-#include "cLocation.h"
 #include "CustomCtrl/_QCustomDialog.h"
-#include "DlgGMapsLocation/DlgGMapsGeneration.h"
 #include "MainWindow/mainwindow.h"
 
 #include <QAbstractTextDocumentLayout>
@@ -986,8 +984,8 @@ void cCompositionObject::DrawCompositionObject(cDiaporamaObject *Object,QPainter
         }
     } else {
         QPainter::RenderHints hints=(!PreviewMode || (ApplicationConfig==NULL) || ApplicationConfig->Smoothing)?
-                    QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen:
-                    QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen;
+                    QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform:
+                    QPainter::Antialiasing|QPainter::TextAntialiasing;
 
         if (IsFullScreen) {
 
@@ -1301,11 +1299,11 @@ void cCompositionObject::DrawCompositionObject(cDiaporamaObject *Object,QPainter
 
                     // 1st step : construct ImgShadow as a mask from ShadowImg
                     QImage      ImgShadow   =ShadowImg.copy();
-                    u_int8_t    *Data       =ImgShadow.bits();
+                    uint8_t    *Data       =ImgShadow.bits();
                     QColor      SColor      =QColor(FormShadowColor);
-                    u_int8_t    R           =SColor.red();
-                    u_int8_t    G           =SColor.green();
-                    u_int8_t    B           =SColor.blue();
+                    uint8_t    R           =SColor.red();
+                    uint8_t    G           =SColor.green();
+                    uint8_t    B           =SColor.blue();
 
                     for (int i=0;i<(width-1)*(height-1);i++) {
                       if (*(Data+3)!=0) {
@@ -1472,7 +1470,6 @@ void cDiaporamaObject::InitDefaultValues() {
     OverrideProjectEventDate                = DEFAULT_CHAPTEROVERRIDE;
     ChapterEventDate                        = Parent->ProjectInfo->EventDate;
     OverrideChapterLongDate                 = DEFAULT_CHAPTEROVERRIDE;
-    ChapterLocation                         = NULL;
     ChapterLongDate                         = "";
     BackgroundType                          = false;                        // Background type : false=same as precedent - true=new background definition
     BackgroundBrush->BrushType              = BRUSHTYPE_SOLID;
@@ -1494,10 +1491,6 @@ cDiaporamaObject::~cDiaporamaObject() {
     if (BackgroundBrush) {
         delete BackgroundBrush;
         BackgroundBrush=NULL;
-    }
-    if (ChapterLocation) {
-        delete ((cLocation *)ChapterLocation);
-        ChapterLocation=NULL;
     }
     while (List.count()>0) delete List.takeLast();
 }
@@ -1757,11 +1750,6 @@ void cDiaporamaObject::SaveToXML(QDomElement &domDocument,QString ElementName,QS
         if (StartNewChapter && !ChapterName.isEmpty())                                      Element.setAttribute("ChapterName",             ChapterName);
         if (OverrideChapterLongDate && !ChapterLongDate.isEmpty())                          Element.setAttribute("ChapterLongDate",         ChapterLongDate);
         if (OverrideProjectEventDate && (ChapterEventDate!=Parent->ProjectInfo->EventDate)) Element.setAttribute("ChapterEventDate",        ChapterEventDate.toString(Qt::ISODate));
-        if (ChapterLocation) {
-            QDomElement SubElement=DomDocument.createElement("ChapterLocation");
-            ((cLocation *)ChapterLocation)->SaveToXML(&SubElement,"",PathForRelativPath,ForceAbsolutPath,ReplaceList,ResKeyList,false);
-            Element.appendChild(SubElement);
-        }
 
         // Transition properties
         SubElement=DomDocument.createElement("Transition");
@@ -1839,12 +1827,6 @@ bool cDiaporamaObject::LoadFromXML(QDomElement domDocument,QString ElementName,Q
             if (Element.hasAttribute("ChapterEventDate"))           ChapterEventDate        =ChapterEventDate.fromString(Element.attribute("ChapterEventDate"),Qt::ISODate);
             ChapterEventDate=OverrideProjectEventDate?ChapterEventDate:Parent->ProjectInfo->EventDate;
             ChapterLongDate =OverrideProjectEventDate?OverrideChapterLongDate?ChapterLongDate:FormatLongDate(ChapterEventDate):Parent->ProjectInfo->LongDate;
-            if ((Element.elementsByTagName("ChapterLocation").length()>0)&&(Element.elementsByTagName("ChapterLocation").item(0).isElement()==true)) {
-                QDomElement SubElement=Element.elementsByTagName("ChapterLocation").item(0).toElement();
-                if (ChapterLocation) delete (cLocation *)ChapterLocation;
-                ChapterLocation=new cLocation(Parent->ApplicationConfig);
-                ((cLocation *)ChapterLocation)->LoadFromXML(&SubElement,"",PathForRelativPath,AliasList,&ModifyFlag,ResKeyList,DuplicateRes);
-            }
 
             // Compatibility with version prior to 1.7
             if ((Parent->ProjectInfo->ffDRevision<"20130725")&&((StartNewChapter)||(GetSlideNumber()==0))) ChapterName=SlideName;
@@ -1936,25 +1918,6 @@ bool cDiaporamaObject::LoadFromXML(QDomElement domDocument,QString ElementName,Q
             cDiaporamaShot *imagesequence=new cDiaporamaShot(this);
             if (!imagesequence->LoadFromXML(Element,"Shot-"+QString("%1").arg(i),PathForRelativPath,&ObjectComposition,AliasList,ResKeyList,DuplicateRes)) IsOk=false;
             List.append(imagesequence);
-        }
-
-        // fix locations definition in shots for version <2.1 20131214
-        QList<cBrushDefinition::sMarker> FirstMarkers;
-        for (int Obj=0;Obj<ObjectComposition.List.count();Obj++) if ((ObjectComposition.List[Obj]->BackgroundBrush->MediaObject)&&(ObjectComposition.List[Obj]->BackgroundBrush->MediaObject->ObjectType==OBJECTTYPE_GMAPSMAP)) {
-            for (int Shot=0;Shot<List.count();Shot++) for (int ShotObj=0;ShotObj<List[Shot]->ShotComposition.List.count();ShotObj++) if (ObjectComposition.List[Obj]->IndexKey==List[Shot]->ShotComposition.List[ShotObj]->IndexKey) {
-                if (List[Shot]->ShotComposition.List[ShotObj]->BackgroundBrush->Markers.isEmpty()) {
-                    if (Shot==0) {
-                        for (int Marker=0;Marker<((cGMapsMap *)ObjectComposition.List[Obj]->BackgroundBrush->MediaObject)->List.count();Marker++) {
-                            cBrushDefinition::sMarker MarkerObj;
-                            MarkerObj.MarkerColor="#ffffff";
-                            MarkerObj.TextColor="#000000";
-                            MarkerObj.Visibility=cBrushDefinition::sMarker::MARKERSHOW;
-                            List[Shot]->ShotComposition.List[ShotObj]->BackgroundBrush->Markers.append(MarkerObj);
-                        }
-                        FirstMarkers=List[Shot]->ShotComposition.List[ShotObj]->BackgroundBrush->Markers;
-                    } else List[Shot]->ShotComposition.List[ShotObj]->BackgroundBrush->Markers=FirstMarkers;
-                }
-            }
         }
 
         // Bug fix for ffDRevision between 1.7b3 and 2.0b3
@@ -2083,8 +2046,6 @@ void cDiaporama::UpdateChapterInformation() {
         ProjectInfo->ChaptersProperties.append("Chapter_"+ChapterNum+":title"   +QString("##")+(List[i]->StartNewChapter?List[i]->ChapterName:ProjectInfo->Title));
         ProjectInfo->ChaptersProperties.append("Chapter_"+ChapterNum+":Date"    +QString("##")+(List[i]->OverrideProjectEventDate?List[i]->ChapterEventDate:ProjectInfo->EventDate).toString(ApplicationConfig->ShortDateFormat));
         ProjectInfo->ChaptersProperties.append("Chapter_"+ChapterNum+":LongDate"+QString("##")+(List[i]->OverrideProjectEventDate?List[i]->OverrideChapterLongDate?List[i]->ChapterLongDate:FormatLongDate(List[i]->ChapterEventDate):ProjectInfo->LongDate));
-        ProjectInfo->ChaptersProperties.append("Chapter_"+ChapterNum+":LocationName"+QString("##")+(List[i]->ChapterLocation?((cLocation *)List[i]->ChapterLocation)->Name:ProjectInfo->Location?((cLocation *)ProjectInfo->Location)->Name:QApplication::translate("Variables","Project's location not set (Name)")));
-        ProjectInfo->ChaptersProperties.append("Chapter_"+ChapterNum+":LocationAddress"+QString("##")+(List[i]->ChapterLocation?((cLocation *)List[i]->ChapterLocation)->FriendlyAddress:ProjectInfo->Location?((cLocation *)ProjectInfo->Location)->FriendlyAddress:QApplication::translate("Variables","Project's location not set (Address)")));
     }
     ProjectInfo->SetRealDuration(QTime(0,0,0,0).addMSecs(GetDuration()));
 }
@@ -2302,7 +2263,7 @@ void cDiaporama::UpdateCachedInformation() {
 
     for (int DiaporamaObjectNum=0;DiaporamaObjectNum<List.count();DiaporamaObjectNum++) {
         cDiaporamaObject    *CurObject =List[DiaporamaObjectNum];
-        cDiaporamaObject    *NextObject=DiaporamaObjectNum<List.count()-1?List[DiaporamaObjectNum+1]:NULL;
+        //cDiaporamaObject    *NextObject=DiaporamaObjectNum<List.count()-1?List[DiaporamaObjectNum+1]:NULL;
 
         bool                HaveSound  =false;
         bool                HaveFilter =false;
@@ -2462,7 +2423,7 @@ bool cDiaporama::SaveFile(QWidget *ParentWindow,cReplaceObjectList *ReplaceList,
     domDocument.appendChild(root);
 
     // Save project properties
-    ProjectInfo->SaveToXML(&root,"",ProjectFileName,false,ReplaceList,&ResKeyList,false);
+    ProjectInfo->SaveToXML(&root);
     ProjectThumbnail->SaveToXML(root,THUMBMODEL_ELEMENTNAME,ProjectFileName,false,ReplaceList,&ResKeyList,true);
 
     // Save basic information on project
@@ -2560,7 +2521,7 @@ void cDiaporama::PrepareMusicBloc(PrepareMusicBlocContext *Context) {
         }
 
         // Get more music bloc at correct position (volume is always 100% @ this point !)
-        CurMusic->ImageAt(Context->PreviewMode,Context->Position+StartPosition+QTime(0,0,0,0).msecsTo(CurMusic->StartPos),Context->MusicTrack,false,1,true,false,Context->NbrDuration);
+        CurMusic->ImageAt(Context->PreviewMode,Context->Position+StartPosition+QTime(0,0,0,0).msecsTo(CurMusic->StartPos),Context->MusicTrack,false,1,true,Context->NbrDuration);
 
         // Apply correct volume to block in queue
         double Volume=CurMusic->Volume;
@@ -2653,7 +2614,7 @@ void cDiaporama::PrepareImage(cDiaporamaObjectInfo *Info,int W,int H,bool IsCurr
         // Prepare a transparent image
         QPainter P;
         P.begin(&Image);
-        P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen);
+        P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform);
         P.setCompositionMode(QPainter::CompositionMode_Source);
         P.fillRect(0,0,W,H,Qt::transparent);
         P.setCompositionMode(QPainter::CompositionMode_SourceOver);
@@ -2687,7 +2648,7 @@ void cDiaporama::DoAssembly(double PCT,cDiaporamaObjectInfo *Info,int W,int H,QI
     QPainter P;
 
     P.begin(&Image);
-    P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen);
+    P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform);
 
     // Draw background
     if ((Info->IsTransition)&&((Info->CurrentObject_Number==0)||(Info->CurrentObject_BackgroundIndex!=Info->TransitObject_BackgroundIndex))) {
@@ -2772,7 +2733,7 @@ void cDiaporama::LoadSources(cDiaporamaObjectInfo *Info,int W,int H,bool Preview
             Info->TransitObject_PreparedImage=QImage(W,H,QImage::Format_ARGB32_Premultiplied);
             QPainter P;
             P.begin(&Info->TransitObject_PreparedImage);
-            P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen);
+            P.setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform);
             P.fillRect(0,0,W,H,Qt::black);//Qt::transparent);
             P.end();
         }
@@ -2811,7 +2772,7 @@ void cDiaporama::LoadSources(cDiaporamaObjectInfo *Info,int W,int H,bool Preview
     }
 
     //==============> Mixing of music and soundtrack
-    QTime b;
+    QElapsedTimer b;
     b.start();
 
     if ((Info->CurrentObject)&&(Info->CurrentObject_MusicTrack)&&(ThreadPrepareCurrentMusicBloc.isRunning())) ThreadPrepareCurrentMusicBloc.waitForFinished();
@@ -2931,8 +2892,8 @@ void cDiaporama::LoadSources(cDiaporamaObjectInfo *Info,int W,int H,bool Preview
 
 //============================================================================================
 
-void cDiaporama::CloseUnusedLibAv(int CurrentCell) {
-    // Parse all unused slide to close unused libav buffer, codec, ...
+void cDiaporama::CloseUnusedFFMPEG(int CurrentCell) {
+    // Parse all unused slide to close unused ffmpeg buffer, codec, ...
     for (int i=0;i<List.count();i++) {
         if ((i<CurrentCell-1)||(i>CurrentCell+1)) for (int j=0;j<List[i]->ObjectComposition.List.count();j++)
             if ((List[i]->ObjectComposition.List[j]->BackgroundBrush->MediaObject)&&(List[i]->ObjectComposition.List[j]->BackgroundBrush->MediaObject->ObjectType==OBJECTTYPE_VIDEOFILE))
@@ -2941,68 +2902,6 @@ void cDiaporama::CloseUnusedLibAv(int CurrentCell) {
     //ApplicationConfig->ImagesCache.FreeMemoryToMaxValue(NULL);
 }
 
-
-//============================================================================================
-
-void cDiaporama::UpdateGMapsObject(bool ProposeAll) {
-    cLocation *PrjLocation=(cLocation *)ProjectInfo->Location;
-    cLocation *ChpLocation=PrjLocation;
-    for (int i=0;i<List.count();i++) {
-        if (List[i]->StartNewChapter) {
-            if (List[i]->ChapterLocation) ChpLocation=(cLocation *)List[i]->ChapterLocation;
-                else ChpLocation=PrjLocation;
-        }
-        for (int j=0;j<List[i]->ObjectComposition.List.count();j++) if ((List[i]->ObjectComposition.List[j]->BackgroundBrush->MediaObject)&&(List[i]->ObjectComposition.List[j]->BackgroundBrush->MediaObject->ObjectType==OBJECTTYPE_GMAPSMAP)) {
-            cGMapsMap *CurrentMap=(cGMapsMap *)List[i]->ObjectComposition.List[j]->BackgroundBrush->MediaObject;
-            bool      Propose=false;
-            bool      FullRefresh=false;
-            for (int loc=0;loc<CurrentMap->List.count();loc++) {
-                cLocation *Location=(cLocation *)CurrentMap->List[loc];
-                if (Location->LocationType==cLocation::PROJECT) {
-                    if ((ProposeAll)&&(!CurrentMap->IsMapValide)) {
-                        Propose=true;
-                    } else if ((PrjLocation)&&((Location->Name!=PrjLocation->Name)||(Location->FriendlyAddress!=PrjLocation->FriendlyAddress)||(Location->GPS_cx!=PrjLocation->GPS_cx)||(Location->GPS_cy!=PrjLocation->GPS_cy))) {
-                        if ((PrjLocation)&&((Location->GPS_cx!=PrjLocation->GPS_cx)||(Location->GPS_cy!=PrjLocation->GPS_cy))) {
-                            FullRefresh=true;
-                            CurrentMap->IsValide=false;
-                        }
-                        Propose=true;
-                    }
-                } else if (Location->LocationType==cLocation::CHAPTER) {
-                    if ((ProposeAll)&&(!CurrentMap->IsMapValide)) {
-                        Propose=true;
-                    } else if ((ChpLocation)&&((Location->Name!=ChpLocation->Name)||(Location->FriendlyAddress!=ChpLocation->FriendlyAddress)||(Location->GPS_cx!=ChpLocation->GPS_cx)||(Location->GPS_cy!=ChpLocation->GPS_cy))) {
-                        if ((PrjLocation)&&((Location->GPS_cx!=ChpLocation->GPS_cx)||(Location->GPS_cy!=ChpLocation->GPS_cy))) {
-                            FullRefresh=true;
-                            CurrentMap->IsValide=false;
-                        }
-                        Propose=true;
-                    }
-                }
-                if (Propose) {
-                    cLocation *RealLoc=NULL;
-                    List[i]->ObjectComposition.List[j]->BackgroundBrush->GetRealLocation((void **)&Location,(void **)&RealLoc);
-                    Propose=(Location!=NULL)&&(RealLoc!=NULL);
-                }
-            }
-            if (Propose) {
-                qlonglong PrevRessourceKey=CurrentMap->RessourceKey;
-                if ((FullRefresh)&&(CustomMessageBox(ApplicationConfig->TopLevelWindow,QMessageBox::Question,APPLICATION_NAME,
-                             QApplication::translate("DlgGMapsLocation","A map on slide %1 must be regenerated.\nDo you want to do it now?").arg(i+1),
-                             QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes)) {
-                    DlgGMapsGeneration Dlg(List[i]->ObjectComposition.List[j]->BackgroundBrush,CurrentMap,false,ApplicationConfig,ApplicationConfig->TopLevelWindow);
-                    Dlg.InitDialog();
-                    Dlg.exec();
-                }
-                // Reset cache of map object
-                ApplicationConfig->ImagesCache.RemoveImageObject(PrevRessourceKey,-1);
-                // Reset thumbnail of slide
-                ApplicationConfig->SlideThumbsTable->ClearThumbs(List[i]->ThumbnailKey);
-                IsModify=true;
-            }
-        }
-    }
-}
 
 //*********************************************************************************************************************************************
 // Class object for rendering

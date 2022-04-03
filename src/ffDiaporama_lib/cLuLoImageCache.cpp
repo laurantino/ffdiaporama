@@ -94,7 +94,7 @@ QImage cLuLoImageCacheObject::ValidateCacheRenderImageNC(qlonglong RessourceKey)
         // If image is ok then apply exif orientation (if needed)
         if (CacheRenderImage) {
             if (ImageOrientation==8) {          // Rotating image anti-clockwise by 90 degrees...'
-                QMatrix matrix;
+                QTransform matrix;
                 matrix.rotate(-90);
                 QImage *NewImage=new QImage(CacheRenderImage->transformed(matrix,Smoothing?Qt::SmoothTransformation:Qt::FastTransformation));
                 if (NewImage) {
@@ -104,7 +104,7 @@ QImage cLuLoImageCacheObject::ValidateCacheRenderImageNC(qlonglong RessourceKey)
                     }
                 }
             } else if (ImageOrientation==3) {   // Rotating image clockwise by 180 degrees...'
-                QMatrix matrix;
+                QTransform matrix;
                 matrix.rotate(180);
                 QImage *NewImage=new QImage(CacheRenderImage->transformed(matrix,Smoothing?Qt::SmoothTransformation:Qt::FastTransformation));
                 if (NewImage) {
@@ -114,7 +114,7 @@ QImage cLuLoImageCacheObject::ValidateCacheRenderImageNC(qlonglong RessourceKey)
                     }
                 }
             } else if (ImageOrientation==6) {   // Rotating image clockwise by 90 degrees...'
-                QMatrix matrix;
+                QTransform matrix;
                 matrix.rotate(90);
                 QImage *NewImage=new QImage(CacheRenderImage->transformed(matrix,Smoothing?Qt::SmoothTransformation:Qt::FastTransformation));
                 if (NewImage) {
@@ -134,7 +134,7 @@ QImage cLuLoImageCacheObject::ValidateCacheRenderImageNC(qlonglong RessourceKey)
 
     }
     if (CacheRenderImage==NULL) ToLog(LOGMSG_CRITICAL,"Error in cLuLoImageCacheObject::ValidateCacheRenderImage() : return NULL");
-    ByteCount=((CacheRenderImage)?CacheRenderImage->byteCount():0)+(((CachePreviewImage)&&(CachePreviewImage!=CacheRenderImage))?CachePreviewImage->byteCount():0);
+    ByteCount=((CacheRenderImage)?CacheRenderImage->sizeInBytes():0)+(((CachePreviewImage)&&(CachePreviewImage!=CacheRenderImage))?CachePreviewImage->sizeInBytes():0);
     MemoryMutex.unlock();
     return (CacheRenderImage?*CacheRenderImage:QImage());
 }
@@ -197,7 +197,7 @@ QImage *cLuLoImageCacheObject::ValidateCachePreviewImage() {
 
                 if (CachePreviewImage) {
                     if (ImageOrientation==8) {          // Rotating image anti-clockwise by 90 degrees...'
-                        QMatrix matrix;
+                        QTransform matrix;
                         matrix.rotate(-90);
                         QImage *NewImage=new QImage(CachePreviewImage->transformed(matrix,Smoothing?Qt::SmoothTransformation:Qt::FastTransformation));
                         if (NewImage) {
@@ -207,17 +207,17 @@ QImage *cLuLoImageCacheObject::ValidateCachePreviewImage() {
                             }
                         }
                     } else if (ImageOrientation==3) {   // Rotating image clockwise by 180 degrees...'
-                        QMatrix matrix;
+                        QTransform matrix;
                         matrix.rotate(180);
                         QImage *NewImage=new QImage(CachePreviewImage->transformed(matrix,Smoothing?Qt::SmoothTransformation:Qt::FastTransformation));
-                        if (NewImage) {
+			if (NewImage) {
                             if (NewImage->isNull()) delete NewImage; else {
                                 delete CachePreviewImage;
                                 CachePreviewImage=NewImage;
                             }
                         }
                     } else if (ImageOrientation==6) {   // Rotating image clockwise by 90 degrees...'
-                        QMatrix matrix;
+                        QTransform matrix;
                         matrix.rotate(90);
                         QImage *NewImage=new QImage(CachePreviewImage->transformed(matrix,Smoothing?Qt::SmoothTransformation:Qt::FastTransformation));
                         if (NewImage) {
@@ -240,7 +240,7 @@ QImage *cLuLoImageCacheObject::ValidateCachePreviewImage() {
 
     }
     if (CachePreviewImage==NULL) ToLog(LOGMSG_CRITICAL,"Error in cLuLoImageCacheObject::CachePreviewImage() : return NULL");
-    ByteCount=((CacheRenderImage)?CacheRenderImage->byteCount():0)+(((CachePreviewImage)&&(CachePreviewImage!=CacheRenderImage))?CachePreviewImage->byteCount():0);
+    ByteCount=((CacheRenderImage)?CacheRenderImage->sizeInBytes():0)+(((CachePreviewImage)&&(CachePreviewImage!=CacheRenderImage))?CachePreviewImage->sizeInBytes():0);
     QImage *Ret=(CachePreviewImage)?new QImage(CachePreviewImage->copy()):NULL;
     MemoryMutex.unlock();
     return Ret;

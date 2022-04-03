@@ -23,15 +23,7 @@ isEmpty(PREFIX) {
 }
 
 CONFIG   += qt thread
-QT       += core gui svg sql xml
-
-greaterThan(QT_MAJOR_VERSION,4) {
-    # QT5 version
-    QT += widgets concurrent help
-} else {
-    # QT4 version
-    CONFIG += help
-}
+QT       += core gui svg sql xml widgets concurrent help
 
 QMAKE_STRIP = echo
 APPFOLDER   = ffDiaporama

@@ -2042,8 +2042,8 @@ Gelb: Die Komponente funktioniert teilweise
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="121"/>
-        <source>LIBAV general version:</source>
-        <translation>LIBAV generelle Version:</translation>
+        <source>FFMPEG version:</source>
+        <translation>FFMPEG generelle Version:</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="128"/>
@@ -8435,8 +8435,8 @@ Wollen Sie ihn überschreiben ?</translation>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="188"/>
         <location filename="../src/ffDiaporama/engine/cDeviceModelDef.cpp" line="728"/>
-        <source>Starting libav...</source>
-        <translation>libav starten ...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>ffmpeg starten ...</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="1193"/>
@@ -10791,7 +10791,7 @@ Zum Beispiel: Wenn Y=25% eingestellt ist, dann wird das erste Viertel von oben a
     <message>
         <location filename="../src/ffDiaporama/DlgImage/wgt_QEditVideo/wgt_QEditVideo.cpp" line="162"/>
         <source>Video stream start position is %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Startposition des Videostreams ist %1</translation>
     </message>
 </context>
 <context>
@@ -11142,7 +11142,7 @@ Der blaue Anteil des Lineals entspricht dem Teil des Videos, der tatsächlich ab
         <location filename="../src/ffDiaporama/wgt_QVideoPlayer/wgt_QVideoPlayer.ui" line="318"/>
         <source>Change the sound volume</source>
         <extracomment>Tooltip in dialog box</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Stellen Sie die Lautstärke ein</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/wgt_QVideoPlayer/wgt_QVideoPlayer.ui" line="363"/>

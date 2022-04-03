@@ -32,24 +32,15 @@
 #include <QTime>
 #include <QDateTime>
 #include <QImage>
-
-#if QT_VERSION >= 0x050000
-    #include <QtSvg/QtSvg>
-#else
-    #include <QtSvg>
-#endif
+#include <QtSvg>
 
 // Include some common various class
-#include "cDeviceModelDef.h"                // Contains Libav include
+#include "cDeviceModelDef.h"                // Contains FFMPEG include
 #include "cSoundBlockList.h"
 #include "cCustomIcon.h"
 
 extern bool Exiv2WithPreview;
 extern int  Exiv2MajorVersion,Eviv2MinorVersion,Exiv2PatchVersion;
-
-#if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-extern int TaglibMajorVersion,TaglibMinorVersion,TaglibPatchVersion;
-#endif
 
 // Utility defines and constant to manage angles
 const double dPI=                           3.14159265358979323846;
@@ -155,7 +146,7 @@ public:
 public:
     QTime   RealAudioDuration;              // Real duration of audio
     QTime   RealVideoDuration;              // Real duration of video
-    QTime   GivenDuration;                  // Duration as given by libav/ffmpeg
+    QTime   GivenDuration;                  // Duration as given by ffmpeg
     qreal   SoundLevel;                     // Sound level
 
 public:
@@ -223,25 +214,23 @@ public:
     QString     DefaultLanguage;    // Default Language (ISO 639 language code)
     int         NbrChapters;        // Number of chapters in the file
     QStringList ChaptersProperties; // Properties of chapters
-    void        *Location;          // a link to a cLocation object
 
     explicit                cffDProjectFile(cApplicationConfig *ApplicationConfig);
-                            ~cffDProjectFile();
 
     void                    InitDefaultValues();
 
     virtual void            SetRealDuration(QTime RealDuration) { SetRealAudioDuration(RealDuration); } // Special case for project : audioduration is project duration
     virtual QString         GetFileTypeStr();
-    virtual bool            LoadBasicInformationFromDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,QStringList *AliasList,bool *ModifyFlag,QList<cSlideThumbsTable::TRResKeyItem> *ResKeyList,bool DuplicateRes);
-    virtual void            SaveBasicInformationToDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel);
-    virtual bool            GetChildFullInformationFromFile(bool IsPartial,cCustomIcon *Icon,QStringList *ExtendedProperties);
+    virtual bool            LoadBasicInformationFromDatabase(QDomElement *ParentElement);
+    virtual void            SaveBasicInformationToDatabase(QDomElement *ParentElement);
+    virtual bool            GetChildFullInformationFromFile(cCustomIcon *Icon,QStringList *ExtendedProperties);
     virtual QImage          *GetDefaultTypeIcon(cCustomIcon::IconSize Size) { return ApplicationConfig->DefaultFFDIcon.GetIcon(Size); }
 
     virtual QString         GetTechInfo(QStringList *ExtendedProperties);
     virtual QString         GetTAGInfo(QStringList *ExtendedProperties);
 
-    void                    SaveToXML(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel);
-    bool                    LoadFromXML(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,QStringList *AliasList,bool *ModifyFlag,QList<cSlideThumbsTable::TRResKeyItem> *ResKeyList,bool DuplicateRes,bool IsPartial);
+    void                    SaveToXML(QDomElement *ParentElement);
+    bool                    LoadFromXML(QDomElement *ParentElement);
 };
 
 //*********************************************************************************************************************************************
@@ -267,8 +256,6 @@ public:
 };
 
 //*********************************************************************************************************************************************
-// Google maps map
-//*********************************************************************************************************************************************
 class cImageClipboard : public cImageFile {
 public:
     explicit                cImageClipboard(cApplicationConfig *ApplicationConfig);
@@ -290,89 +277,6 @@ public:
 };
 
 //*********************************************************************************************************************************************
-// Google maps map
-//*********************************************************************************************************************************************
-
-class cGMapsMap : public cImageClipboard {
-public:
-    static const int SectionWith   =640;    // With of a section
-    static const int SectionHeight =600;    // Height of a section
-
-    struct RequestSection {
-        QRectF  Rect;                       // Portion of the destination image where this section is
-        QString GoogleRequest;              // Google request to create this portion
-    };
-
-    QList<void *>           List;           // List of location (should be QList<cLocation *> but use void* because of .h chain)
-    QList<RequestSection>   RequestList;    // List of pending Google requests to be used to create the map (if the list is empty then the map is fully created)
-    int                     ZoomLevel;      // Google Zoom level of the actual map
-    int                     Scale;          // Google Scale level of the actual map
-    double                  MapCx;          // Center X position of the actual map in Google pixel unit
-    double                  MapCy;          // Center Y position of the actual map in Google pixel unit
-    bool                    IsMapValide;    // True if map was succesfully generated
-
-    enum GMapsMapType {
-        Roadmap,
-        Satellite,
-        Terrain,
-        Hybrid,
-        GMapsMapType_NBR
-    } MapType;                              // Type of the map
-
-    enum GMapsImageSize {
-        Small,              // 640x360 (half 720p)
-        FS720P,             // 1280x720
-        FS720X4,            // 2560x1440
-        FS720X9,            // 3840x2160
-        FS1080P,            // 1920x1080
-        FS1080X4,           // 3840x2160
-        FS1080X9,           // 5760x3240
-        GMapsImageSize_NBR
-    } ImageSize;                            // Image size of the map
-
-    explicit                cGMapsMap(cApplicationConfig *ApplicationConfig);
-                            ~cGMapsMap();
-
-    virtual void            SaveToXML(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel);
-
-    virtual QString         GetFileTypeStr()                                { return QApplication::translate("cBaseMediaFile","Google Maps map","File type"); }
-    virtual QImage          *GetDefaultTypeIcon(cCustomIcon::IconSize Size) { return ApplicationConfig->DefaultGMapsIcon.GetIcon(Size); }
-
-    virtual QImage          *ImageAt(bool PreviewMode);
-
-    virtual bool            GetInformationFromFile(QString GivenFileName,QStringList *AliasList,bool *ModifyFlag,qlonglong FolderKey);
-    virtual bool            LoadBasicInformationFromDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,QStringList *AliasList,bool *ModifyFlag,QList<cSlideThumbsTable::TRResKeyItem> *ResKeyList,bool DuplicateRes);
-    virtual void            SaveBasicInformationToDatabase(QDomElement *ParentElement,QString ElementName,QString PathForRelativPath,bool ForceAbsolutPath,cReplaceObjectList *ReplaceList,QList<qlonglong> *ResKeyList,bool IsModel);
-    virtual bool            GetChildFullInformationFromFile(bool IsPartial,cCustomIcon *Icon,QStringList *ExtendedProperties);
-    virtual QString         GetTechInfo(QStringList *ExtendedProperties);
-    virtual QString         GetTAGInfo(QStringList *ExtendedProperties);
-    virtual QStringList     GetSummaryText(QStringList *ExtendedProperties);   // return 3 lines to display Summary of media file in dialog box which need them
-
-    virtual QStringList     GetGoogleMapTypeNames();
-    virtual QStringList     GetMapTypeNames();
-    virtual QStringList     GetImageSizeNames();
-    virtual QStringList     GetShortImageSizeNames();
-
-    virtual QString         GetCurrentGoogleMapTypeName();
-    virtual QString         GetCurrentMapTypeName();
-
-    virtual QString         GetCurrentImageSizeName(bool Full=true);
-    virtual QSize           GetCurrentImageSize();
-
-    virtual QImage          CreateDefaultImage(cDiaporama *Diaporama);  // Create a new empty image (to be fill by requests to Google)
-    virtual int             ComputeNbrSection(int Size,int Divisor);    // Compute number of sections needed to create map for current image size
-    virtual void            ComputeSectionList();                       // Create sections to request to Google
-
-    virtual QStringList     GetMapSizesPerZoomLevel();                  // Compute Map Size for each Google Maps zoomlevel
-    virtual QPoint          GetLocationPoint(int Index);
-
-private:
-    virtual QRectF          GetGPSRectF();                              // Return rectangle needed to handle all locations in GPS unit
-    virtual QRectF          GetPixRectF();                              // Return rectangle needed to handle all locations in Google pixel unit
-    virtual int             GetMinZoomLevelForSize();                   // Return minimum zoom level depending on current image size
-};
-
-//*********************************************************************************************************************************************
 // Video file
 //*********************************************************************************************************************************************
 extern int MAXCACHEIMAGE;
@@ -387,7 +291,7 @@ public:
 
 class cVideoFile : public cBaseMediaFile {
 public:
-    bool                    IsOpen;                             // True if Libav open on this file
+    bool                    IsOpen;                             // True if FFMPEG open on this file
     bool                    MusicOnly;                          // True if object is a music only file
     bool                    IsVorbis;                           // True if vorbis version must be use instead of MP3/WAV version
     bool                    IsMTS;                              // True if file is a MTS file
@@ -397,7 +301,7 @@ public:
     QString                 VideoCodecInfo;
     QString                 AudioCodecInfo;
     int                     NbrChapters;                        // Number of chapters in the file
-    int64_t                 LibavStartTime;                     // copy of the start_time information from the libavfile
+    int64_t                 FFMPEGstartTime;                     // copy of the start_time information from ffmpeg
     int64_t                 LastAudioReadedPosition;            // Use to keep the last readed position to determine if a seek is needed
     int64_t                 LastVideoReadedPosition;            // Use to keep the last readed position to determine if a seek is needed
 
@@ -434,18 +338,14 @@ public:
     virtual bool            OpenCodecAndFile();
     virtual void            CloseCodecAndFile();
 
-    virtual QImage          *ImageAt(bool PreviewMode,int64_t Position,cSoundBlockList *SoundTrackMontage,bool Deinterlace,double Volume,bool ForceSoundOnly,bool DontUseEndPos,int NbrDuration=2);
-    virtual QImage          *ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndPos,bool Deinterlace,cSoundBlockList *SoundTrackBloc,double Volume,bool ForceSoundOnly,int NbrDuration=2);
+    virtual QImage          *ImageAt(bool PreviewMode,int64_t Position,cSoundBlockList *SoundTrackMontage,bool Deinterlace,double Volume,bool DontUseEndPos,int NbrDuration=2);
+    virtual QImage          *ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndPos,bool Deinterlace,cSoundBlockList *SoundTrackBloc,double Volume,int NbrDuration=2);
     virtual QImage          *ConvertYUVToRGB(bool PreviewMode,AVFrame *Frame);
 
     virtual bool            SeekFile(AVStream *VideoStream,AVStream *AudioStream,int64_t Position);
     virtual void            CloseResampler();
-    virtual void            CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleFormat RSC_InSampleFmt,AVSampleFormat RSC_OutSampleFmt,int RSC_InSampleRate,int RSC_OutSampleRate
-                                                #if (defined(LIBAV)&&(LIBAVVERSIONINT>=9)) || defined(FFMPEG)
-                                                   ,uint64_t RSC_InChannelLayout,uint64_t RSC_OutChannelLayout
-                                                #endif
-                                          );
-    virtual u_int8_t        *Resample(AVFrame *Frame,int64_t *SizeDecoded,int DstSampleSize);
+    virtual void            CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleFormat RSC_InSampleFmt,AVSampleFormat RSC_OutSampleFmt,int RSC_InSampleRate,int RSC_OutSampleRate,uint64_t RSC_InChannelLayout,uint64_t RSC_OutChannelLayout);
+    virtual uint8_t         *Resample(AVFrame *Frame,int64_t *SizeDecoded,int DstSampleSize);
 
     //*********************
     // video filters part
@@ -456,28 +356,20 @@ public:
 
     virtual int             VideoFilter_Open();
     virtual void            VideoFilter_Close();
-    #if (defined(LIBAV)&&(LIBAVVERSIONINT<=9) || defined(FFMPEG)&&(FFMPEGVERSIONINT<201))
-        virtual int         VideoFilter_Process();
-    #endif
 
 protected:
-    AVFormatContext         *LibavAudioFile,*LibavVideoFile;    // LibAVFormat contexts
-    AVCodec                 *VideoDecoderCodec;                 // Associated LibAVCodec for video stream
-    AVCodec                 *AudioDecoderCodec;                 // Associated LibAVCodec for audio stream
+    AVFormatContext         *FFMPEGaudioFile,*FFMPEGvideoFile;    // LibAVFormat contexts
+    const AVCodec           *VideoDecoderCodec;                   // Associated LibAVCodec for video stream
+    AVCodecContext          *VideoDecoderCodecCtx;
+    const AVCodec           *AudioDecoderCodec;                   // Associated LibAVCodec for audio stream
+    AVCodecContext          *AudioDecoderCodecCtx;
     AVFrame                 *FrameBufferYUV;
     bool                    FrameBufferYUVReady;        // true if FrameBufferYUV is ready to convert
     int64_t                 FrameBufferYUVPosition;     // If FrameBufferYUV is ready to convert then keep FrameBufferYUV position
 
     // Audio resampling
-    #if defined(LIBAV) && (LIBAVVERSIONINT<=8)
-    ReSampleContext         *RSC;
-    #elif defined(LIBAV)
-    AVAudioResampleContext  *RSC;
-    uint64_t                RSC_InChannelLayout,RSC_OutChannelLayout;
-    #elif defined(FFMPEG)
     SwrContext              *RSC;
     uint64_t                RSC_InChannelLayout,RSC_OutChannelLayout;
-    #endif
     int                     RSC_InChannels,RSC_OutChannels;
     int                     RSC_InSampleRate,RSC_OutSampleRate;
     AVSampleFormat          RSC_InSampleFmt,RSC_OutSampleFmt;

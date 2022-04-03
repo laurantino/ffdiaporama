@@ -138,12 +138,6 @@ void wgt_QMultimediaBrowser::FolderTreeItemChanged(QTreeWidgetItem *current,QTre
     ui->FolderIcon->setPixmap(ApplicationConfig->DriveList->GetFolderIcon(ui->FolderTable->CurrentPath).pixmap(16,16));
 
     QString Path=ui->FolderTable->CurrentPath;
-    #ifdef Q_OS_WIN
-        Path.replace("%HOMEDRIVE%%HOMEPATH%",ApplicationConfig->DriveList->List[0].Path,Qt::CaseInsensitive);
-        Path.replace("%USERPROFILE%",ApplicationConfig->DriveList->List[0].Path,Qt::CaseInsensitive);
-        Path=QDir::toNativeSeparators(Path);
-        if (QDir(Path).canonicalPath()!="") Path=QDir(Path).canonicalPath(); // Resolved eventual .lnk files
-    #endif
     ui->FolderTable->FillListFolder(Path);
     DoBrowserRefreshFolderInfo();
 }
@@ -571,13 +565,8 @@ bool wgt_QMultimediaBrowser::InRemoveFolder(QString FolderPath) {
 
 void wgt_QMultimediaBrowser::RemoveFolder() {
     QString FolderPath=ui->FolderTree->GetFolderPath(ui->FolderTree->currentItem(),false);
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        if (FolderPath.startsWith("~")) FolderPath=QDir::homePath()+FolderPath.mid(1);
-    #else
-        if (FolderPath.startsWith(PersonalFolder)) FolderPath=QDir::homePath()+FolderPath.mid(PersonalFolder.length());
-        FolderPath=QDir::toNativeSeparators(FolderPath);
-    #endif
-
+    if (FolderPath.startsWith("~")) FolderPath=QDir::homePath()+FolderPath.mid(1);
+    
     QString NewFolderPath=ui->FolderTree->GetFolderPath(ui->FolderTree->currentItem(),true);
     if (NewFolderPath.lastIndexOf(QDir::separator())!=-1) NewFolderPath=NewFolderPath.left(NewFolderPath.lastIndexOf(QDir::separator()));
 
@@ -594,18 +583,10 @@ void wgt_QMultimediaBrowser::RenameFolder() {
     bool    PersoF=false;
 
     QString FolderPath=ui->FolderTree->GetFolderPath(ui->FolderTree->currentItem(),false);
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        if (FolderPath.startsWith("~")) {
-            FolderPath=QDir::homePath()+FolderPath.mid(1);
-            PersoF=true;
-        }
-    #else
-        if (FolderPath.startsWith(PersonalFolder)) {
-            FolderPath=QDir::homePath()+FolderPath.mid(PersonalFolder.length());
-            FolderPath=QDir::toNativeSeparators(FolderPath);
-            PersoF=true;
-        }
-    #endif
+    if (FolderPath.startsWith("~")) {
+        FolderPath=QDir::homePath()+FolderPath.mid(1);
+        PersoF=true;
+    }
     QString SrcFolder    =FolderPath;
     QString SubFolderName=FolderPath;
     if (SubFolderName.endsWith(QDir::separator())) SubFolderName=SubFolderName.lastIndexOf(SubFolderName.length()-1);
@@ -616,13 +597,7 @@ void wgt_QMultimediaBrowser::RenameFolder() {
         if (Ok && !SubFolderName.isEmpty()) {
             if (!QDir().rename(SrcFolder,FolderPath+QDir::separator()+SubFolderName)) CustomMessageBox(this,QMessageBox::Critical,QApplication::translate("MainWindow","Rename folder"),QApplication::translate("MainWindow","Impossible to rename folder!"),QMessageBox::Ok);
             else {
-                if (PersoF) {
-                    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-                    FolderPath.replace(QDir::homePath(),"~");
-                    #else
-                    FolderPath.replace(QDir::toNativeSeparators(QDir::homePath()),PersonalFolder);
-                    #endif
-                }
+                if (PersoF) FolderPath.replace(QDir::homePath(),"~");
                 ui->FolderTree->RefreshItemByPath(ui->FolderTree->GetFolderPath(ui->FolderTree->currentItem()->parent(),true),false);
                 ui->FolderTree->SetSelectItemByPath(FolderPath+QDir::separator()+SubFolderName);
             }

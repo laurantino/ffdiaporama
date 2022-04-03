@@ -160,7 +160,7 @@ void DlgImageComposer::DoInitDialog() {
 //====================================================================================================================
 
 DlgImageComposer::~DlgImageComposer() {
-    ffdProject->CloseUnusedLibAv(ffdProject->CurrentCol);
+    ffdProject->CloseUnusedFFMPEG(ffdProject->CurrentCol);
     delete ui;
 }
 
@@ -675,7 +675,7 @@ void DlgImageComposer::s_BlockTable_AddFilesBlock(QStringList FileList,int Posit
             if (CurrentBrush->MediaObject->ObjectType==OBJECTTYPE_VIDEOFILE) {
                 cVideoFile *Video=(cVideoFile *)CurrentBrush->MediaObject;
                 Video->EndPos=Video->GetRealDuration();
-                if (Video->LibavStartTime>0) Video->StartPos=QTime(0,0,0,0).addMSecs(int64_t((double(Video->LibavStartTime)/AV_TIME_BASE)*1000));
+                if (Video->FFMPEGstartTime>0) Video->StartPos=QTime(0,0,0,0).addMSecs(int64_t((double(Video->FFMPEGstartTime)/AV_TIME_BASE)*1000));
             }
 
             // Apply Styles for texte
@@ -862,7 +862,8 @@ void DlgImageComposer::s_BlockSettings_ImageEditCorrect() {
     cBrushDefinition *CurrentBrush=CurrentCompoObject->BackgroundBrush;
 
     // Compute position of video
-    int Position=(CurrentBrush->MediaObject->ObjectType==OBJECTTYPE_VIDEOFILE)?QTime(0,0,0,0).msecsTo(((cVideoFile*)&CurrentBrush->MediaObject)->StartPos):0;
+    cVideoFile *video = static_cast<cVideoFile*>(CurrentBrush->MediaObject);
+    int Position=(CurrentBrush->MediaObject->ObjectType==OBJECTTYPE_VIDEOFILE)?QTime(0,0,0,0).msecsTo(video->StartPos):0;
     DlgImageCorrection Dlg(CurrentCompoObject,&CurrentCompoObject->BackgroundForm,CurrentCompoObject->BackgroundBrush,Position,ffdProject->ImageGeometry,ffdProject->ImageAnimSpeedWave,ApplicationConfig,this);
     Dlg.InitDialog();
     if (Dlg.exec()==0) {

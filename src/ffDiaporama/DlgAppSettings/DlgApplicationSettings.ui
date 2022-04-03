@@ -331,16 +331,6 @@ Beyond this height, the videos are automatically reduced for creating images.</s
              </property>
             </widget>
            </item>
-           <item row="5" column="0" colspan="2">
-            <widget class="QCheckBox" name="OpenWEBNewVersionCH">
-             <property name="toolTip">
-              <string>If this box is checked, a dialog box will appear at startup the next time a new version will be available.</string>
-             </property>
-             <property name="text">
-              <string>Offer to open the download Web page when a new version is available</string>
-             </property>
-            </widget>
-           </item>
            <item row="13" column="0">
             <widget class="QLabel" name="label_7">
              <property name="text">
@@ -405,19 +395,6 @@ Beyond this height, the videos are automatically reduced for creating images.</s
              </property>
              <property name="buddy">
               <cstring>PreviewFrameRateCB</cstring>
-             </property>
-            </widget>
-           </item>
-           <item row="24" column="0">
-            <widget class="QLabel" name="ProxyAddrLabel">
-             <property name="text">
-              <string>Proxy address :</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-             <property name="buddy">
-              <cstring>AppendObjectCB</cstring>
              </property>
             </widget>
            </item>
@@ -554,41 +531,6 @@ Remark: Some manufacturers produce videos using interlaced mode. They make it to
              </property>
             </widget>
            </item>
-           <item row="22" column="0" colspan="2">
-            <widget class="QLabel" name="label_62">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>30</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>30</height>
-              </size>
-             </property>
-             <property name="font">
-              <font>
-               <weight>75</weight>
-               <bold>true</bold>
-               <underline>true</underline>
-              </font>
-             </property>
-             <property name="text">
-              <string>Network settings</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
-             </property>
-            </widget>
-           </item>
            <item row="19" column="0">
             <widget class="QLabel" name="label_33">
              <property name="text">
@@ -609,16 +551,6 @@ Remark: Some manufacturers produce videos using interlaced mode. They make it to
              </property>
              <property name="buddy">
               <cstring>PreviewFrameRateCB</cstring>
-             </property>
-            </widget>
-           </item>
-           <item row="23" column="1">
-            <widget class="QCheckBox" name="ProxyCB">
-             <property name="toolTip">
-              <string>Check this box if your network requires that you use a proxy</string>
-             </property>
-             <property name="text">
-              <string>Use a proxy to access the Internet</string>
              </property>
             </widget>
            </item>
@@ -786,76 +718,6 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
              </property>
              <property name="text">
               <string>Automatically crop 1920x1088 video to 1920x1080</string>
-             </property>
-            </widget>
-           </item>
-           <item row="24" column="1">
-            <widget class="QLineEdit" name="ProxyAddrED">
-             <property name="toolTip">
-              <string>Enter address of the proxy host</string>
-             </property>
-            </widget>
-           </item>
-           <item row="25" column="1">
-            <widget class="QLineEdit" name="ProxyPortED">
-             <property name="toolTip">
-              <string>Enter the port number to access the proxy or nothing to use default port</string>
-             </property>
-            </widget>
-           </item>
-           <item row="25" column="0">
-            <widget class="QLabel" name="ProxyPortLabel">
-             <property name="text">
-              <string>Proxy port :</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-             <property name="buddy">
-              <cstring>AppendObjectCB</cstring>
-             </property>
-            </widget>
-           </item>
-           <item row="26" column="1">
-            <widget class="QLineEdit" name="ProxyLoginED">
-             <property name="toolTip">
-              <string>Enter the login name to access the proxy or nothing if no login is required</string>
-             </property>
-            </widget>
-           </item>
-           <item row="26" column="0">
-            <widget class="QLabel" name="ProxyLoginLabel">
-             <property name="text">
-              <string>Login :</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-             <property name="buddy">
-              <cstring>AppendObjectCB</cstring>
-             </property>
-            </widget>
-           </item>
-           <item row="27" column="1">
-            <widget class="QLineEdit" name="ProxyPWDED">
-             <property name="toolTip">
-              <string>Enter the login password to access the proxy or nothing if no login is required</string>
-             </property>
-             <property name="echoMode">
-              <enum>QLineEdit::Password</enum>
-             </property>
-            </widget>
-           </item>
-           <item row="27" column="0">
-            <widget class="QLabel" name="ProxyPWDLabel">
-             <property name="text">
-              <string>Password :</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-             <property name="buddy">
-              <cstring>AppendObjectCB</cstring>
              </property>
             </widget>
            </item>
@@ -1035,7 +897,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1070,7 +932,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1086,7 +948,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1102,7 +964,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1118,7 +980,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1153,7 +1015,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1169,7 +1031,7 @@ Remark: Some manufacturers produce FullHD videos 1920×1088 rather than 1920×10
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1277,7 +1139,7 @@ Framing:</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1293,7 +1155,7 @@ Framing:</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1309,7 +1171,7 @@ Framing:</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1325,7 +1187,7 @@ Framing:</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1341,7 +1203,7 @@ Framing:</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1385,7 +1247,7 @@ This style defines the shape (rectangle, circle, …), the border, the opaquenes
 Remark: This setting apply to all image formats.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1397,7 +1259,7 @@ This style defines the font, its size, its color and the shadow effects applied 
 Remark: This setting apply to all image formats.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1450,7 +1312,7 @@ Remark: This setting apply to all image formats.</string>
 This style defines the shape (rectangle, circle, …), the border, the opaqueness and the shadow effect applied to the block.</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -1461,7 +1323,7 @@ This style defines the shape (rectangle, circle, …), the border, the opaquenes
 This style defines the transparency of the block and its filling.</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -1662,7 +1524,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1678,7 +1540,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1694,7 +1556,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1710,7 +1572,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1742,7 +1604,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1758,7 +1620,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1774,7 +1636,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1790,7 +1652,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1806,7 +1668,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1822,7 +1684,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>The positioning styles define the the size, coordinates, rotations and geometric constraint to apply to blocks.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1854,7 +1716,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1870,7 +1732,7 @@ This style defines the transparency of the block and its filling.</string>
                 <string>Framing styles define how to crop the image to make it compatible with the block in which is displayed.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1898,7 +1760,7 @@ This style defines the font, its size, its color and the shadow effects applied 
 Remark: This setting apply to all image formats.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -1910,7 +1772,7 @@ This style defines the shape (rectangle, circle, …), the border, the opaquenes
 Remark: This setting apply to all image formats.</string>
                </property>
                <property name="sizeAdjustPolicy">
-                <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+                <enum>QComboBox::AdjustToContents</enum>
                </property>
               </widget>
              </item>
@@ -2037,7 +1899,7 @@ Remark: This setting apply to all image formats.</string>
 This style defines the font, its size, its color and the shadow effects applied to the text.</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -2560,7 +2422,7 @@ Note: the geometry of a project is defined once and for all when it is created. 
 - Lock to project geometry: The shape of the block has the same shape as the image</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -2805,7 +2667,7 @@ Note: this field is limited to 30 characters to remain compatible with jukebox</
 This style defines the size, the coordinates, the rotations and the geometrical constraint.</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -2998,7 +2860,7 @@ Note: this field is limited to 30 characters to remain compatible with jukebox</
               <string>Select the default bit rate to use for video during the rendering</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -3492,7 +3354,7 @@ Note: this field is limited to 30 characters to remain compatible with jukebox</
               <string>Select the default bit rate to use for audio during the rendering</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -3620,7 +3482,7 @@ Note: this field is limited to 30 characters to remain compatible with jukebox</
               <string>Select the default bit rate to use for audio during the rendering</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
             </widget>
            </item>
@@ -3630,7 +3492,7 @@ Note: this field is limited to 30 characters to remain compatible with jukebox</
               <string>Select the default video standard to use, PAL or NTSC</string>
              </property>
              <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+              <enum>QComboBox::AdjustToContents</enum>
              </property>
              <item>
               <property name="text">
@@ -4041,7 +3903,6 @@ when you click the &quot;Player and Smartphone&quot; button in the &quot;Render 
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>OpenWEBNewVersionCH</tabstop>
   <tabstop>MemCacheProfilCB</tabstop>
   <tabstop>PreviewFrameRateCB</tabstop>
   <tabstop>MaxVideoPreviewHeightCB</tabstop>
@@ -4052,11 +3913,6 @@ when you click the &quot;Player and Smartphone&quot; button in the &quot;Render 
   <tabstop>AskUserToRemove</tabstop>
   <tabstop>Crop1088To1080CB</tabstop>
   <tabstop>DeinterlaceCB</tabstop>
-  <tabstop>ProxyCB</tabstop>
-  <tabstop>ProxyAddrED</tabstop>
-  <tabstop>ProxyPortED</tabstop>
-  <tabstop>ProxyLoginED</tabstop>
-  <tabstop>ProxyPWDED</tabstop>
   <tabstop>ShortDateFmtCB</tabstop>
   <tabstop>DistanceUnitCB</tabstop>
   <tabstop>scrollArea_3</tabstop>

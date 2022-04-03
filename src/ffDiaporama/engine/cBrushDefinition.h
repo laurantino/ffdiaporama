@@ -156,10 +156,6 @@ public:
     int                     GetHeightForWidth(int WantedWith,QRectF Rect);
     int                     GetWidthForHeight(int WantedHeight,QRectF Rect);
 
-    void                    GetRealLocation(void **Location,void **RealLocation);
-    void                    DrawMarker(QPainter *Painter,QPoint Position,int MarkerNum,sMarker::MARKERVISIBILITY Visibility,QSize MarkerSize,cBrushDefinition::sMarker::MARKERSIZE Size,bool DisplayType=false);
-    void                    ComputeMarkerSize(void *Location,QSize MapImageSize);
-    void                    AddMarkerToImage(QImage *DestImage);
 };
 
 #endif // CBRUSHDEFINITION_H

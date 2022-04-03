@@ -87,10 +87,6 @@ void cImgInteractiveZone::InitCachedImage(cCompositionObject *TheCompoObject,int
         case OBJECTTYPE_IMAGECLIPBOARD:
             CachedImage=CurrentBrush->MediaObject->ImageAt(false);
             break;
-        case OBJECTTYPE_GMAPSMAP:
-            CachedImage=CurrentBrush->MediaObject->ImageAt(false);
-            CurrentBrush->AddMarkerToImage(CachedImage);
-            break;
         case OBJECTTYPE_VIDEOFILE:
             Video=(cVideoFile *)CurrentBrush->MediaObject;
             CachedImage=Video->ImageAt(false,VideoPosition+QTime(0,0,0,0).msecsTo(Video->StartPos),NULL,CurrentBrush->Deinterlace,1,false,false);

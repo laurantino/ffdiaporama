@@ -2041,8 +2041,8 @@ Amarelo: O componente funciona parcialmente
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="121"/>
-        <source>LIBAV general version:</source>
-        <translation>LIBAV versão geral:</translation>
+        <source>FFMPEG version:</source>
+        <translation>FFMPEG versão geral:</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="128"/>
@@ -8438,8 +8438,8 @@ Você quer substituí-lo?</translation>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="188"/>
         <location filename="../src/ffDiaporama/engine/cDeviceModelDef.cpp" line="728"/>
-        <source>Starting libav...</source>
-        <translation>Iniciando libav ...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>Iniciando ffmpeg ...</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="280"/>
@@ -10800,7 +10800,7 @@ Exemplo: se Y = 25% o primeiro quadrante com a parte superior da imagem é elimi
     <message>
         <location filename="../src/ffDiaporama/DlgImage/wgt_QEditVideo/wgt_QEditVideo.cpp" line="162"/>
         <source>Video stream start position is %1</source>
-        <translation type="unfinished"></translation>
+        <translation>A posição inicial do fluxo de vídeo é %1</translation>
     </message>
 </context>
 <context>
@@ -11151,7 +11151,7 @@ A parte azul representa a parte do vídeo, que é seleccionado (o que irá ser u
         <location filename="../src/ffDiaporama/wgt_QVideoPlayer/wgt_QVideoPlayer.ui" line="318"/>
         <source>Change the sound volume</source>
         <extracomment>Tooltip in dialog box</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Ajuste o volume</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/wgt_QVideoPlayer/wgt_QVideoPlayer.ui" line="363"/>

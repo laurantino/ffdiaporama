@@ -20,7 +20,6 @@
 
 #include "cBrushDefinition.h"
 #include <QtSvg>
-#include <engine/cLocation.h>
 
 #include "ImageFilters.h"
 #include "_Variables.h"
@@ -220,15 +219,9 @@ QImage cBrushDefinition::ApplyFilters(QImage NewRenderImage,double TheBrightness
 
 QImage cBrushDefinition::GetImageDiskBrush(QRectF Rect,bool PreviewMode,int64_t Position,cSoundBlockList *SoundTrackMontage,double PctDone,cBrushDefinition *PreviousBrush) {
     // If not an image or a video or filename is empty then return
-    if ((!MediaObject)||((MediaObject->RessourceKey==-1)&&(MediaObject->FileKey==-1)&&(MediaObject->ObjectType!=OBJECTTYPE_GMAPSMAP))) {    // Allow gmap object without image (default image will be computed in imageat function)
-        QImage Ret(Rect.width(),Rect.height(),QImage::Format_ARGB32_Premultiplied);
-        QPainter Painter;
-        Painter.begin(&Ret);
-        Painter.setCompositionMode(QPainter::CompositionMode_Source);
-        Painter.fillRect(QRect(0,0,Rect.width(),Rect.height()),Qt::transparent);
-        Painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-        Painter.end();
-        return Ret;
+    if ((!MediaObject)||((MediaObject->RessourceKey==-1)&&(MediaObject->FileKey==-1))) {
+        QImage ret;
+        return ret;
     }
 
     // W and H = 0 when producing sound track in render process
@@ -238,8 +231,6 @@ QImage cBrushDefinition::GetImageDiskBrush(QRectF Rect,bool PreviewMode,int64_t 
         QImage *RenderImage=NULL;
         if ((MediaObject)&&(MediaObject->ObjectType!=OBJECTTYPE_VIDEOFILE)) RenderImage=MediaObject->ImageAt(PreviewMode);
             else if (MediaObject) RenderImage=((cVideoFile *)MediaObject)->ImageAt(PreviewMode,Position,SoundTrackMontage,this->Deinterlace,this->SoundVolume,false,false);
-
-        if ((RenderImage)&&(MediaObject)&&(MediaObject->ObjectType==OBJECTTYPE_GMAPSMAP)) AddMarkerToImage(RenderImage);
 
         // Compute filters values
         QImage Ret;
@@ -449,8 +440,6 @@ void cBrushDefinition::CopyFromBrushDefinition(cBrushDefinition *BrushToCopy) {
     Implode                 =BrushToCopy->Implode;
     OnOffFilter             =BrushToCopy->OnOffFilter;
     ImageSpeedWave          =BrushToCopy->ImageSpeedWave;
-
-    Markers                 =BrushToCopy->Markers;
 }
 
 //====================================================================================================================
@@ -460,17 +449,6 @@ void cBrushDefinition::AddShotPartToXML(QDomElement *Element) {
     if (MediaObject->ObjectType==OBJECTTYPE_VIDEOFILE) {
         Element->setAttribute("SoundVolume",QString("%1").arg(SoundVolume,0,'f'));               // Volume of soundtrack (for video only)
         Element->setAttribute("Deinterlace",Deinterlace?"1":0);                                  // Add a YADIF filter to deinterlace video (on/off) (for video only)
-    } else if (MediaObject->ObjectType==OBJECTTYPE_GMAPSMAP) {
-        // Save marker settings
-        QDomDocument    DomDocument;
-        for (int MarkerNum=0;MarkerNum<Markers.count();MarkerNum++) {
-            QDomElement SubElement=DomDocument.createElement(QString("Marker_%1").arg(MarkerNum));
-            SubElement.setAttribute("MarkerColor",Markers[MarkerNum].MarkerColor);
-            SubElement.setAttribute("TextColor",Markers[MarkerNum].TextColor);
-            SubElement.setAttribute("LineColor",Markers[MarkerNum].LineColor);
-            SubElement.setAttribute("Visibility", int(Markers[MarkerNum].Visibility));
-            Element->appendChild(SubElement);
-        }
     }
 }
 
@@ -485,14 +463,8 @@ void cBrushDefinition::SaveToXML(QDomElement *ParentElement,QString ElementName,
     if ((!BrushFileName.isEmpty())&&(!BrushFileName.startsWith(":/img/"))) {
         if (QDir::toNativeSeparators(BrushFileName).startsWith(ClipArtFolder)) {
             BrushFileName="%CLIPARTFOLDER%"+QDir::toNativeSeparators(BrushFileName).mid(ClipArtFolder.length());
-            #ifdef Q_OS_WIN
-            BrushFileName=BrushFileName.replace("\\","/");  // Force Linux mode separator
-            #endif
         } else if (QDir::toNativeSeparators(BrushFileName).startsWith(ModelFolder)) {
             BrushFileName="%MODELFOLDER%"  +QDir::toNativeSeparators(BrushFileName).mid(ModelFolder.length());
-            #ifdef Q_OS_WIN
-            BrushFileName=BrushFileName.replace("\\","/");  // Force Linux mode separator
-            #endif
         } else {
 
             if (ReplaceList) {
@@ -520,9 +492,11 @@ void cBrushDefinition::SaveToXML(QDomElement *ParentElement,QString ElementName,
         case BRUSHTYPE_GRADIENT3    :
             Element.setAttribute("ColorIntermed",ColorIntermed);                                            // Intermediate Color
             Element.setAttribute("Intermediate",Intermediate);                                              // Intermediate position of 2nd color (in %)
+            break;
         case BRUSHTYPE_GRADIENT2    :
             Element.setAttribute("ColorF",ColorF);                                                          // Last Color
             Element.setAttribute("GradientOrientation",GradientOrientation);                                // 0=Radial, 1=Up-Left, 2=Up, 3=Up-right, 4=Right, 5=bt-right, 6=bottom, 7=bt-Left, 8=Left
+            break;
         case BRUSHTYPE_SOLID        :
             Element.setAttribute("ColorD",ColorD);                                                          // First Color
             break;
@@ -611,9 +585,11 @@ bool cBrushDefinition::LoadFromXML(QDomElement *ParentElement,QString ElementNam
             case BRUSHTYPE_GRADIENT3    :
                 ColorIntermed       =Element.attribute("ColorIntermed");                // Intermediate Color
                 Intermediate        =GetDoubleValue(Element,"Intermediate");            // Intermediate position of 2nd color (in %)
+                break;
             case BRUSHTYPE_GRADIENT2    :
                 ColorF              =Element.attribute("ColorF");                       // Last Color
                 GradientOrientation =Element.attribute("GradientOrientation").toInt();  // 0=Radial, 1=Up-Left, 2=Up, 3=Up-right, 4=Right, 5=bt-right, 6=bottom, 7=bt-Left, 8=Left
+                break;
             case BRUSHTYPE_SOLID        :
                 ColorD=Element.attribute("ColorD");                                    // First Color
                 break;
@@ -629,12 +605,10 @@ bool cBrushDefinition::LoadFromXML(QDomElement *ParentElement,QString ElementNam
                         BrushFileName=BrushFileName.replace("<%MODELFOLDER%>",MFD);     BrushFileName=BrushFileName.replace("%MODELFOLDER%",MFD);
                         if ((PathForRelativPath!="")&&(BrushFileName!="")) BrushFileName=QDir::cleanPath(QDir(PathForRelativPath).absoluteFilePath(BrushFileName));
                         // Fixes a previous bug in relative path
-                        #ifndef Q_OS_WIN
                         if (BrushFileName.startsWith("/..")) {
                             if (BrushFileName.contains("/home/")) BrushFileName=BrushFileName.mid(BrushFileName.indexOf("/home/"));
                             if (BrushFileName.contains("/mnt/"))  BrushFileName=BrushFileName.mid(BrushFileName.indexOf("/mnt/"));
                         }
-                        #endif
                         Extension=QFileInfo(BrushFileName).suffix().toLower();
                         if (ObjectType==OBJECTTYPE_UNMANAGED) {
                             if      (ApplicationConfig->AllowVideoExtension.contains(Extension.toLower()))       ObjectType=OBJECTTYPE_VIDEOFILE;
@@ -669,11 +643,6 @@ bool cBrushDefinition::LoadFromXML(QDomElement *ParentElement,QString ElementNam
                                 ((cVideoFile*)MediaObject)->StartPos =QTime().fromString(Element.attribute("StartPos"));    // Start position (video only)
                                 ((cVideoFile*)MediaObject)->EndPos   =QTime().fromString(Element.attribute("EndPos"));      // End position (video only)
                             }
-                            break;
-                        case OBJECTTYPE_GMAPSMAP:
-                            MediaObject=new cGMapsMap(ApplicationConfig);
-                            MediaObject->LoadFromXML(&Element,"",PathForRelativPath,AliasList,ModifyFlag,ResKeyList,DuplicateRes);
-                            IsValide=MediaObject->GetInformationFromFile("",NULL,NULL,-1);
                             break;
                         case OBJECTTYPE_UNMANAGED:
                         default:
@@ -720,21 +689,6 @@ bool cBrushDefinition::LoadFromXML(QDomElement *ParentElement,QString ElementNam
                             }
                             break;
                         default: break;
-                    }
-                }
-                if ((MediaObject)&&(MediaObject->ObjectType==OBJECTTYPE_GMAPSMAP)) {
-                    // Load marker settings
-                    int MarkerNum=0;
-                    Markers.clear();
-                    while ((Element.elementsByTagName(QString("Marker_%1").arg(MarkerNum)).length()>0)&&(Element.elementsByTagName(QString("Marker_%1").arg(MarkerNum)).item(0).isElement()==true)) {
-                        QDomElement SubElement=Element.elementsByTagName(QString("Marker_%1").arg(MarkerNum)).item(0).toElement();
-                        sMarker Marker;
-                        if (SubElement.hasAttribute("TextColor"))   Marker.TextColor=SubElement.attribute("TextColor");
-                        if (SubElement.hasAttribute("MarkerColor")) Marker.MarkerColor=SubElement.attribute("MarkerColor");
-                        if (SubElement.hasAttribute("LineColor"))   Marker.LineColor=SubElement.attribute("LineColor");
-                        if (SubElement.hasAttribute("Visibility"))  Marker.Visibility =(sMarker::MARKERVISIBILITY)SubElement.attribute("Visibility").toInt();
-                        Markers.append(Marker);
-                        MarkerNum++;
                     }
                 }
                 break;
@@ -1220,270 +1174,3 @@ void *cBrushDefinition::GetDiaporama() {
     if (Object) return Object->Parent; else return NULL;
 }
 
-//====================================================================================================================
-
-void cBrushDefinition::GetRealLocation(void **Location,void **RealLocation) {
-    *RealLocation=*Location;
-    if ((*Location)&&(((cLocation *)(*Location))->LocationType==cLocation::PROJECT)) {
-        cDiaporama *Diaporama=(cDiaporama *)GetDiaporama();
-        if (Diaporama) *RealLocation=Diaporama->ProjectInfo->Location;
-    } else if ((*Location)&&(((cLocation *)(*Location))->LocationType==cLocation::CHAPTER)) {
-        cDiaporamaObject *DiaporamaObject=(cDiaporamaObject *)GetDiaporamaObject();
-        if (DiaporamaObject) {
-            cDiaporamaObject *ChapterObject=DiaporamaObject->Parent->GetChapterDefObject(DiaporamaObject);
-            if ((ChapterObject)&&(ChapterObject->ChapterLocation)) *RealLocation=ChapterObject->ChapterLocation;
-                else if (DiaporamaObject)                          *RealLocation=DiaporamaObject->Parent->ProjectInfo->Location;
-        }
-    }
-
-}
-
-//====================================================================================================================
-
-void cBrushDefinition::DrawMarker(QPainter *Painter,QPoint Position,int MarkerNum,sMarker::MARKERVISIBILITY Visibility,QSize MarkerSize,cBrushDefinition::sMarker::MARKERSIZE Size,bool DisplayType) {
-    if ((MarkerNum<0)||(MarkerNum>=Markers.count())||(Visibility==sMarker::MARKERHIDE)||(!MediaObject)||(MediaObject->ObjectType!=OBJECTTYPE_GMAPSMAP)) return;
-
-    cLocation *Location=((cLocation *)((cGMapsMap *)MediaObject)->List[MarkerNum]);
-    cLocation *RealLoc =NULL;
-    GetRealLocation((void **)&Location,(void **)&RealLoc);
-    if (!Location) return;
-
-    bool    HaveIcon=(Visibility==sMarker::MARKERTABLE)||(Location->MarkerCompo==cLocation::ICONNAMEADDR)||(Location->MarkerCompo==cLocation::ICONNAME)||(Location->MarkerCompo==cLocation::ICON);
-    bool    HaveName=(Visibility==sMarker::MARKERTABLE)||(Location->MarkerCompo==cLocation::ICONNAMEADDR)||(Location->MarkerCompo==cLocation::ICONNAME)||(Location->MarkerCompo==cLocation::NAME)||(Location->MarkerCompo==cLocation::NAMEADDR);
-    bool    HaveAddr=(Visibility==sMarker::MARKERTABLE)||(Location->MarkerCompo==cLocation::ICONNAMEADDR)||(Location->MarkerCompo==cLocation::NAMEADDR)||(Location->MarkerCompo==cLocation::ADDR);
-
-    cLocation::LOCATIONTYPE Type=(Location!=NULL?Location->LocationType:cLocation::FREE);
-    QFont                   FontNormal,FontBold;
-    QTextOption             OptionText;
-    int                     IconSize,Spacer,CornerSize;
-    double                  FontSize;
-    QString                 Name   =RealLoc!=NULL?RealLoc->Name:QApplication::translate("cBrushDefinition","Error: Project's location no set");
-    QString                 Address=RealLoc!=NULL?RealLoc->FriendlyAddress:QApplication::translate("cBrushDefinition","Error: Project's location no set");
-    sMarker::MARKERSIZE     sSize=(Visibility==sMarker::MARKERTABLE?sMarker::MEDIUM:Size);
-
-    if ((DisplayType)&&(Type==cLocation::PROJECT)) {
-        Name=QApplication::translate("cBrushDefinition","Project's location (%1)").arg(Name);
-        Address=QApplication::translate("cBrushDefinition","Project's location (%1)").arg(Address);
-    } else if ((DisplayType)&&(Type==cLocation::CHAPTER)) {
-        Name   =QApplication::translate("cBrushDefinition","Chapter's location (%1)").arg(Name);
-        Address=QApplication::translate("cBrushDefinition","Chapter's location (%1)").arg(Address);
-    }
-
-    // Setup FontFactor
-    switch (sSize) {
-        case cBrushDefinition::sMarker::SMALL:      IconSize=24;    FontSize=90;    Spacer=3;   CornerSize=6;   break;
-        case cBrushDefinition::sMarker::MEDIUM:     IconSize=32;    FontSize=120;   Spacer=3;   CornerSize=8;   break;
-        case cBrushDefinition::sMarker::LARGE:      IconSize=48;    FontSize=180;   Spacer=4;   CornerSize=12;  break;
-        case cBrushDefinition::sMarker::VERYLARGE:
-        default:
-                                                    IconSize=64;    FontSize=240;   Spacer=4;   CornerSize=16;  break;
-    }
-
-    if ((Visibility==sMarker::MARKERTABLE)||(Location->MarkerForm!=cLocation::MARKERFORMBUBLE)) CornerSize=0;
-
-    // Draw icon
-    if (HaveIcon) {
-        QImage Icon =RealLoc!=NULL?RealLoc->GetThumb(IconSize):QImage();
-        if (!Icon.isNull()) Painter->drawImage(Position.x()+Spacer+CornerSize/2,Position.y()+Spacer+CornerSize/2,Icon);
-    } else IconSize=0;
-
-    int XText=Spacer*(HaveIcon?2:1)+IconSize+CornerSize/2;
-
-    OptionText=QTextOption(Qt::AlignLeft|Qt::AlignVCenter);     // Setup alignement
-    OptionText.setWrapMode(QTextOption::NoWrap);                // Setup word wrap text option
-
-    Painter->setPen(QPen(QColor(Markers[MarkerNum].TextColor)));
-    if (HaveAddr) {
-        FontNormal=QFont("Sans serif",9,QFont::Normal,false);      // Font size is adjusted after
-        #ifdef Q_OS_WIN
-        FontNormal.setPointSizeF(double(FontSize)/ScaleFontAdjust);                         // Scale font
-        #else
-        FontNormal.setPointSizeF((double(FontSize)/ScaleFontAdjust)*ScreenFontAdjust);      // Scale font
-        #endif
-        Painter->setFont(FontNormal);
-        Painter->drawText(QRect(Position.x()+XText,Position.y()+MarkerSize.height()-Spacer-CornerSize/2-QFontMetrics(FontNormal).height(),
-                                MarkerSize.width()-Spacer-XText,QFontMetrics(FontNormal).height()),Address,OptionText);
-    }
-    if (HaveName) {
-        if (!HaveAddr && HaveIcon) FontSize=FontSize*2;
-        FontBold  =QFont("Sans serif",9,QFont::Bold,  false);      // Font size is adjusted after
-        #ifdef Q_OS_WIN
-        FontBold.setPointSizeF(double(FontSize*1.1)/ScaleFontAdjust);                       // Scale font
-        #else
-        FontBold.setPointSizeF((double(FontSize*1.1)/ScaleFontAdjust)*ScreenFontAdjust);    // Scale font
-        #endif
-        Painter->setFont(FontBold);
-        int H=(HaveIcon?(HaveAddr?IconSize/2:IconSize):QFontMetrics(FontBold).height());
-        Painter->drawText(QRect(Position.x()+XText,Position.y()+Spacer+CornerSize/2,
-                                MarkerSize.width()-Spacer-XText,H),Name,OptionText);
-    }
-}
-
-//=====================================================================================================
-
-void cBrushDefinition::ComputeMarkerSize(void *Loc,QSize MapImageSize) {
-    QFont       FontNormal,FontBold;
-    int         IconSize,Spacer,NameWidth,AddressWidth,FullSpacer,H,CornerSize;
-    double      FontSize;
-    cLocation   *Location=(cLocation *)Loc;
-    cLocation   *RealLoc =NULL;
-    GetRealLocation((void **)&Location,(void **)&RealLoc);
-    if (!Location) return;
-
-    bool    HaveIcon=(Location->MarkerCompo==cLocation::ICONNAMEADDR)||(Location->MarkerCompo==cLocation::ICONNAME)||(Location->MarkerCompo==cLocation::ICON);
-    bool    HaveName=(Location->MarkerCompo==cLocation::ICONNAMEADDR)||(Location->MarkerCompo==cLocation::ICONNAME)||(Location->MarkerCompo==cLocation::NAME)||(Location->MarkerCompo==cLocation::NAMEADDR);
-    bool    HaveAddr=(Location->MarkerCompo==cLocation::ICONNAMEADDR)||(Location->MarkerCompo==cLocation::NAMEADDR)||(Location->MarkerCompo==cLocation::ADDR);
-    QString Name   =RealLoc!=NULL?RealLoc->Name:QApplication::translate("cBrushDefinition","Error: Project's location no set");
-    QString Address=RealLoc!=NULL?RealLoc->FriendlyAddress:QApplication::translate("cBrushDefinition","Error: Project's location no set");
-
-    // Setup FontFactor
-    switch (Location->Size) {
-        case cBrushDefinition::sMarker::SMALL:      IconSize=24;    FontSize=90;    Spacer=3;   CornerSize=6;   break;
-        case cBrushDefinition::sMarker::MEDIUM:     IconSize=32;    FontSize=120;   Spacer=3;   CornerSize=8;   break;
-        case cBrushDefinition::sMarker::LARGE:      IconSize=48;    FontSize=180;   Spacer=4;   CornerSize=12;  break;
-        case cBrushDefinition::sMarker::VERYLARGE:
-        default:                                    IconSize=64;    FontSize=240;   Spacer=4;   CornerSize=16;  break;
-    }
-    if (!HaveIcon) IconSize=0;
-    if (Location->MarkerForm!=cLocation::MARKERFORMBUBLE) CornerSize=0;
-
-    // Setup fonts
-    if (HaveAddr) {
-        FontNormal=QFont("Sans serif",9,QFont::Normal,false);      // Font size is adjusted after
-        #ifdef Q_OS_WIN
-        FontNormal.setPointSizeF(double(FontSize)/ScaleFontAdjust);                         // Scale font
-        #else
-        FontNormal.setPointSizeF((double(FontSize)/ScaleFontAdjust)*ScreenFontAdjust);      // Scale font
-        #endif
-        QFontMetrics fmn(FontNormal);
-        AddressWidth=fmn.boundingRect(QRect(0,0,MapImageSize.width(),MapImageSize.height()),0,Address).width()*1.02;
-    } else AddressWidth=0;
-
-    if (HaveName) {
-        if (!HaveAddr && HaveIcon) FontSize=FontSize*2;
-        FontBold  =QFont("Sans serif",9,QFont::Bold,  false);      // Font size is adjusted after
-        #ifdef Q_OS_WIN
-        FontBold.setPointSizeF(double(FontSize*1.1)/ScaleFontAdjust);                       // Scale font
-        #else
-        FontBold.setPointSizeF((double(FontSize*1.1)/ScaleFontAdjust)*ScreenFontAdjust);    // Scale font
-        #endif
-        QFontMetrics fmb(FontBold);
-        NameWidth=fmb.boundingRect(QRect(0,0,MapImageSize.width(),MapImageSize.height()),0,Name).width()*1.02;
-    } else NameWidth=0;
-
-    if (HaveIcon)                           H=IconSize+Spacer*2;
-        else if (HaveName && HaveAddr)      H=QFontMetrics(FontBold).height()+QFontMetrics(FontNormal).height()+Spacer*3;
-        else if (HaveName)                  H=QFontMetrics(FontBold).height()+Spacer*2;
-        else                                H=QFontMetrics(FontNormal).height()+Spacer*2;
-
-    if (HaveIcon && (HaveName || HaveAddr)) FullSpacer=IconSize+Spacer*3;
-        else                                FullSpacer=IconSize+Spacer*2;
-
-    // Compute MarkerSize
-    Location->MarkerSize.setWidth((NameWidth>AddressWidth?NameWidth:AddressWidth)+FullSpacer+CornerSize);
-    //if (MarkerSize.width()>(MapImageSize.width()*0.6)) MarkerSize.setWidth(MapImageSize.width()*0.6);     // Not more than 60% of the map width
-    Location->MarkerSize.setHeight(H+CornerSize);
-}
-
-//====================================================================================================================
-
-void cBrushDefinition::AddMarkerToImage(QImage *DestImage) {
-    if ((!MediaObject)||(MediaObject->ObjectType!=OBJECTTYPE_GMAPSMAP)||(!DestImage)) return;
-
-    cGMapsMap *CurrentMap=(cGMapsMap *)MediaObject;
-    if (!CurrentMap->IsMapValide) return;
-
-    QSize    DestMapSize=CurrentMap->GetCurrentImageSize();
-    QPainter Painter;
-    Painter.begin(DestImage);
-    if (DestImage->size()!=DestMapSize) Painter.setWindow(0,0,DestMapSize.width(),DestMapSize.height());
-
-    for (int i=0;i<CurrentMap->List.count();i++) if (Markers[i].Visibility!=cBrushDefinition::sMarker::MARKERHIDE) {
-        cLocation *Location=((cLocation *)CurrentMap->List[i]);
-        cLocation *RealLoc =NULL;
-        GetRealLocation((void **)&Location,(void **)&RealLoc);
-
-        if ((Location)&&(RealLoc)) {
-            QPoint          MarkerPoint=CurrentMap->GetLocationPoint(i);
-            QPoint          MarkerPosition;
-            QPoint          MarkerStartLine;
-            int             GPSPointSize,CornerSize,PenSize;
-            QPen            Pen;
-            QPainterPath    MarkerPath,PointPath,LinePath;
-            int             MakerLineLen=1;
-
-            // Compute distance
-            switch (Location->Distance) {
-                case cLocation::MARKERDISTNEAR:    MakerLineLen=DestMapSize.height()/24;  break;
-                case cLocation::MARKERDISTNORMAL:  MakerLineLen=DestMapSize.height()/17;  break;
-                case cLocation::MARKERDISTFAR:     MakerLineLen=DestMapSize.height()/10;  break;
-            }
-
-            // Compute sizes
-            switch (Location->Size) {
-                case cBrushDefinition::sMarker::SMALL:      GPSPointSize=7;     PenSize=1;    CornerSize=6;   break;
-                case cBrushDefinition::sMarker::MEDIUM:     GPSPointSize=10;    PenSize=1;    CornerSize=8;   break;
-                case cBrushDefinition::sMarker::LARGE:      GPSPointSize=13;    PenSize=2;    CornerSize=12;  break;
-                case cBrushDefinition::sMarker::VERYLARGE:
-                default:                                    GPSPointSize=16;    PenSize=2;    CornerSize=16;  break;
-            }
-
-            // Compute orientation of marker
-            if (MarkerPoint.y()>Location->MarkerSize.height()+MakerLineLen) {
-                MarkerPosition=QPoint(MarkerPoint.x()-(Location->MarkerSize.width()/2),MarkerPoint.y()-MakerLineLen-Location->MarkerSize.height());
-                MarkerStartLine.setY(MarkerPosition.y()+Location->MarkerSize.height()-1);
-            } else {
-                MarkerPosition=QPoint(MarkerPoint.x()-(Location->MarkerSize.width()/2),MarkerPoint.y()+MakerLineLen);
-                MarkerStartLine.setY(MarkerPosition.y()+1);
-            }
-            if (MarkerPosition.x()<0) MarkerPosition.setX(0);
-            if (MarkerPosition.x()+Location->MarkerSize.width()>DestMapSize.width()) MarkerPosition.setX(DestMapSize.width()-Location->MarkerSize.width());
-            MarkerStartLine.setX(MarkerPosition.x()+Location->MarkerSize.width()/2);
-
-            // Prepare GPS point path
-            switch (Location->MarkerPointForm) {
-                case cLocation::MARKERPOINTPOINT:   PointPath.moveTo(MarkerPoint);                                                                              break;
-                case cLocation::MARKERPOINTCIRCLE:  PointPath.addEllipse(MarkerPoint,GPSPointSize/2,GPSPointSize/2);                                            break;
-                case cLocation::MARKERPOINTRECT:    PointPath.addRect(MarkerPoint.x()-GPSPointSize/2,MarkerPoint.y()-GPSPointSize/2,GPSPointSize,GPSPointSize); break;
-            }
-
-            // Prepare line path and marker path
-            int BubbleSize=GPSPointSize*2;
-            if (BubbleSize>(Location->MarkerSize.width()/4)) BubbleSize=Location->MarkerSize.width()/4;
-            switch (Location->MarkerForm) {
-                case cLocation::MARKERFORMRECT:
-                    LinePath.moveTo(QPoint(MarkerPoint.x()-PenSize*2,MarkerPoint.y()));
-                    LinePath.lineTo(QPoint(MarkerStartLine.x()-PenSize*2,MarkerStartLine.y()));
-                    LinePath.lineTo(QPoint(MarkerStartLine.x()+PenSize*2,MarkerStartLine.y()));
-                    LinePath.lineTo(QPoint(MarkerPoint.x()+PenSize*2,MarkerPoint.y()));
-                    LinePath.lineTo(QPoint(MarkerPoint.x()-PenSize*2,MarkerPoint.y()));
-                    MarkerPath.addRect(MarkerPosition.x(),MarkerPosition.y(),Location->MarkerSize.width(),Location->MarkerSize.height());
-                    break;
-                case cLocation::MARKERFORMBUBLE:
-                    LinePath.moveTo(MarkerPoint);
-                    LinePath.lineTo(QPoint(MarkerStartLine.x()-BubbleSize,MarkerStartLine.y()));
-                    LinePath.lineTo(QPoint(MarkerStartLine.x()+BubbleSize,MarkerStartLine.y()));
-                    LinePath.lineTo(MarkerPoint);
-                    MarkerPath.addRoundedRect(MarkerPosition.x(),MarkerPosition.y(),Location->MarkerSize.width(),Location->MarkerSize.height(),CornerSize,CornerSize);
-                    break;
-            }
-            // Make union
-            MarkerPath=MarkerPath.united(LinePath);
-            MarkerPath=MarkerPath.united(PointPath);
-
-            Painter.save();
-            Painter.setBrush(QBrush(QColor(Markers[i].MarkerColor),Qt::SolidPattern));
-            Pen.setColor(QColor(Markers[i].LineColor));
-            Pen.setStyle(Qt::SolidLine);
-            Pen.setWidth(PenSize);
-            Painter.setPen(Pen);
-            if (Markers[i].Visibility==cBrushDefinition::sMarker::MARKERSHADE) Painter.setOpacity(0.5);
-            Painter.drawPath(MarkerPath);
-            PenSize*=2;
-            Painter.setClipRect(MarkerPosition.x()+PenSize,MarkerPosition.y()+PenSize,Location->MarkerSize.width()-2*PenSize,Location->MarkerSize.height()-2*PenSize);
-            DrawMarker(&Painter,MarkerPosition,i,Markers[i].Visibility,Location->MarkerSize,Location->Size);
-            Painter.restore();
-        }
-    }
-    Painter.end();
-}

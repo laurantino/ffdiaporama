@@ -29,9 +29,6 @@
 #include <QTextStream>
 #include <QTranslator>
 #include <QTextDocument>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkProxy>
 #include "HelpPopup/HelpPopup.h"
 
 struct sBrowserTypeDef BrowserTypeDef[BROWSER_TYPE_NBR]={
@@ -52,116 +49,52 @@ struct sBrowserTypeDef BrowserTypeDef[BROWSER_TYPE_NBR]={
 
 //*****************************************************************************************************************************************
 
-#if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-    bool SearchRasterMode() {
-        QString UserConfigPath;    // Path and filename to user profil path
-        QString UserConfigFile;    // Path and filename to user configuration file
-        QString GlobalConfigFile;  // Path and filename to global configuration file (in binary directory)
-        bool    RasterMode=true;
+bool SearchRasterMode() {
+    QString UserConfigPath;    // Path and filename to user profil path
+    QString UserConfigFile;    // Path and filename to user configuration file
+    QString GlobalConfigFile;  // Path and filename to global configuration file (in binary directory)
+    bool    RasterMode=true;
 
-        UserConfigPath=QDir::homePath();
-        if (!UserConfigPath.endsWith(QDir::separator())) UserConfigPath=UserConfigPath+QDir::separator();
-        UserConfigPath  = UserConfigPath+"."+QString(APPLICATION_NAME)+QDir::separator();
-        GlobalConfigFile=QFileInfo(QString(APPLICATION_NAME)+QString(CONFIGFILEEXT)).absoluteFilePath();
-        UserConfigFile  =QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString(CONFIGFILEEXT)).absoluteFilePath();
+    UserConfigPath=QDir::homePath();
+    if (!UserConfigPath.endsWith(QDir::separator())) UserConfigPath=UserConfigPath+QDir::separator();
+    UserConfigPath  = UserConfigPath+"."+QString(APPLICATION_NAME)+QDir::separator();
+    GlobalConfigFile=QFileInfo(QString(APPLICATION_NAME)+QString(CONFIGFILEEXT)).absoluteFilePath();
+    UserConfigFile  =QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString(CONFIGFILEEXT)).absoluteFilePath();
 
-        QFile           file(GlobalConfigFile);
-        QDomDocument    domDocument;
-        QDomElement     root;
-        QString         errorStr;
-        int             errorLine,errorColumn;
+    QFile           file(GlobalConfigFile);
+    QDomDocument    domDocument;
+    QDomElement     root;
+    QString         errorStr;
+    int             errorLine,errorColumn;
 
-        // Load Global preferences
-        if (file.open(QFile::ReadOnly | QFile::Text)) {
-            if (domDocument.setContent(&file,true,&errorStr,&errorLine,&errorColumn)) {
-                root = domDocument.documentElement();
-                if ((root.tagName()==QString(CONFIGFILE_ROOTNAME))&&(root.elementsByTagName("GlobalPreferences").length()>0)&&(root.elementsByTagName("GlobalPreferences").item(0).isElement()==true)) {
-                    ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Search Raster mode in configuration file")+GlobalConfigFile);
-                    QDomElement Element=root.elementsByTagName("GlobalPreferences").item(0).toElement();
-                    if (Element.hasAttribute("RasterMode")) RasterMode=Element.attribute("RasterMode")=="1";
-                }
+    // Load Global preferences
+    if (file.open(QFile::ReadOnly | QFile::Text)) {
+        if (domDocument.setContent(&file,true,&errorStr,&errorLine,&errorColumn)) {
+            root = domDocument.documentElement();
+            if ((root.tagName()==QString(CONFIGFILE_ROOTNAME))&&(root.elementsByTagName("GlobalPreferences").length()>0)&&(root.elementsByTagName("GlobalPreferences").item(0).isElement()==true)) {
+                ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Search Raster mode in configuration file")+GlobalConfigFile);
+                QDomElement Element=root.elementsByTagName("GlobalPreferences").item(0).toElement();
+                if (Element.hasAttribute("RasterMode")) RasterMode=Element.attribute("RasterMode")=="1";
             }
-            file.close();
         }
-
-        // Load user preferences
-        file.setFileName(UserConfigFile);
-        if (file.open(QFile::ReadOnly | QFile::Text)) {
-            if (domDocument.setContent(&file,true,&errorStr,&errorLine,&errorColumn)) {
-                root = domDocument.documentElement();
-                if ((root.tagName()==QString(CONFIGFILE_ROOTNAME))&&(root.elementsByTagName("GlobalPreferences").length()>0)&&(root.elementsByTagName("GlobalPreferences").item(0).isElement()==true)) {
-                    ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Search Raster mode in configuration file")+GlobalConfigFile);
-                    QDomElement Element=root.elementsByTagName("GlobalPreferences").item(0).toElement();
-                    if (Element.hasAttribute("RasterMode")) RasterMode=Element.attribute("RasterMode")=="1";
-                }
-            }
-            file.close();
-        }
-
-        return RasterMode;
+        file.close();
     }
-#endif
 
-//====================================================================================================================
-
-DownloadObject::DownloadObject(QString FileName,QObject *parent):QObject(parent) {
-    ApplicationConfig   =(cApplicationConfig *)parent;
-    Status              =false;
-    NetworkDataFileName =FileName;
-    loop                =NULL;
-    NetworkManager      =ApplicationConfig->GetNetworkAccessManager(this);
-    GetNewtorkDataReply =NetworkManager->get(QNetworkRequest(QUrl(QString(LOCAL_WEBURL)+NetworkDataFileName)));
-    int httpstatuscode  =GetNewtorkDataReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toUInt();
-
-    if (!httpstatuscode) {
-        if (GetNewtorkDataReply->error()==QNetworkReply::NoError) {
-            TimeOutTimer.setSingleShot(true);
-            loop=new QEventLoop(this);
-            connect(&TimeOutTimer,      SIGNAL(timeout()),  loop,SLOT(quit()));
-            connect(GetNewtorkDataReply,SIGNAL(finished()), this,SLOT(httpGetDataFinished()));
-            connect(GetNewtorkDataReply,SIGNAL(readyRead()),this,SLOT(httpGetDataReadyRead()));
-            TimeOutTimer.start(DOWNLOADTIMEOUT);
-            loop->exec();
-            if(TimeOutTimer.isActive()) {
-                TimeOutTimer.stop();
-                if (Status) ToLog(LOGMSG_INFORMATION,QString("Downloading %1 from ffDiaporama Web Site ... done").arg(NetworkDataFileName));
-                    else    ToLog(LOGMSG_INFORMATION,QString("Downloading %1 from ffDiaporama Web Site ... error").arg(NetworkDataFileName));
-            } else {
-               // timeout
-               disconnect(GetNewtorkDataReply,SIGNAL(finished()),loop,SLOT(quit()));
-               GetNewtorkDataReply->abort();
-               ToLog(LOGMSG_INFORMATION,QString("Downloading %1 from ffDiaporama Web Site ... timeout").arg(NetworkDataFileName));
-            }
-            NetworkData.clear();
-        }
-    }
-}
-
-DownloadObject::~DownloadObject() {
-    if (loop)                   loop->deleteLater();
-    if (GetNewtorkDataReply)    GetNewtorkDataReply->deleteLater();
-    if (NetworkManager)         NetworkManager->deleteLater();
-}
-
-void DownloadObject::httpGetDataFinished() {
-    if (!GetNewtorkDataReply) return;
-    if (!NetworkData.isEmpty()) {
-        Status=(!NetworkData.contains(QString("404 - Not Found").toLocal8Bit()));
-        if (Status) {
-            QFile DataFile(ApplicationConfig->UserConfigPath+NetworkDataFileName);
-            if (DataFile.open(QFile::WriteOnly)) {
-                DataFile.write(NetworkData);
-                DataFile.close();
+    // Load user preferences
+    file.setFileName(UserConfigFile);
+    if (file.open(QFile::ReadOnly | QFile::Text)) {
+        if (domDocument.setContent(&file,true,&errorStr,&errorLine,&errorColumn)) {
+            root = domDocument.documentElement();
+            if ((root.tagName()==QString(CONFIGFILE_ROOTNAME))&&(root.elementsByTagName("GlobalPreferences").length()>0)&&(root.elementsByTagName("GlobalPreferences").item(0).isElement()==true)) {
+                ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Search Raster mode in configuration file")+GlobalConfigFile);
+                QDomElement Element=root.elementsByTagName("GlobalPreferences").item(0).toElement();
+                if (Element.hasAttribute("RasterMode")) RasterMode=Element.attribute("RasterMode")=="1";
             }
         }
+        file.close();
     }
-    GetNewtorkDataReply->deleteLater();
-    GetNewtorkDataReply=NULL;
-    loop->exit();
-}
 
-void DownloadObject::httpGetDataReadyRead() {
-    if (GetNewtorkDataReply) NetworkData.append(GetNewtorkDataReply->readAll());
+    return RasterMode;
 }
 
 //**********************************************************************************************************************
@@ -169,17 +102,6 @@ void DownloadObject::httpGetDataReadyRead() {
 //**********************************************************************************************************************
 
 cApplicationConfig::cApplicationConfig(QMainWindow *TheTopLevelWindow,QString TheAllowedWEBLanguage):cBaseAppConfig(TheTopLevelWindow) {
-    #ifdef Q_OS_WIN
-        // Options for windows only
-        // registry value for specific Windows Folder
-        QString WINDOWS_APPDATA;                                        // specific Windows Folder : AppData
-        QString WINDOWS_MUSIC;                                          // specific Windows Folder : My Music
-        QString WINDOWS_PICTURES;                                       // specific Windows Folder : My Pictures
-        QString WINDOWS_VIDEO;                                          // specific Windows Folder : My Video
-        QString WINDOWS_DOCUMENTS;                                      // specific Windows Folder : Personal
-    #endif
-
-    UseNetworkProxy         =false;
     PopupHelp               =NULL;
     AllowedWEBLanguage      =TheAllowedWEBLanguage;
     TopLevelWindow          =TheTopLevelWindow;            // Link to MainWindow of the application
@@ -201,14 +123,8 @@ cApplicationConfig::cApplicationConfig(QMainWindow *TheTopLevelWindow,QString Th
     this->ForceLanguage     =ForceLanguage;
     RestoreWindow           =true;                                                         // if true then restore windows size and position
     DisableTooltips         =false;
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        RasterMode          =true;                                                         // Enable or disable raster mode [Linux only]
-        CheckConfigAtStartup=true;
-        OpenWEBNewVersion   =false;
-    #else
-        CheckConfigAtStartup=false;
-        OpenWEBNewVersion   =true;
-    #endif
+    RasterMode              =true;                                                         // Enable or disable raster mode [Linux only]
+    CheckConfigAtStartup    =true;
     Crop1088To1080          =true;                                                         // Automaticaly crop video from 1088 lines to 1080 (CANON)
     Deinterlace             =false;
     RememberLastDirectories =true;
@@ -218,80 +134,32 @@ cApplicationConfig::cApplicationConfig(QMainWindow *TheTopLevelWindow,QString Th
     // Search plateforme and define specific value depending on plateforme
     //*********************************************************************
 
-    #ifdef Q_OS_WIN
-        switch (QSysInfo().WindowsVersion) {
-            case 0x0010 : Plateforme="Windows NT";                                                      break;
-            case 0x0020 : Plateforme="Windows 2000";                                                    break;
-            case 0x0030 : Plateforme="Windows XP";                                                      break;
-            case 0x0040 : Plateforme="Windows Server 2003/2003 R2/Home Server/XP Professional x64";     break;
-            case 0x0080 : Plateforme="Windows Vista/Windows Server 2008";                               break;
-            case 0x0090 : Plateforme="Windows 7/Windows Server 2008 R2";                                break;
-            case 0x00a0 : Plateforme="Windows 8";                                                       break;
-            default     : Plateforme="Unknown version";                                                 break;
-        }
-
-        #ifdef Q_OS_WIN64
-            Plateforme=Plateforme+" 64 bits";
-        #else
-            Plateforme=Plateforme+" 32 bits";
-        #endif
-
-        // Load registry value for specific Windows Folder
-        QSettings Settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders",QSettings::NativeFormat);
-        WINDOWS_APPDATA  =Settings.value("AppData").toString();
-        WINDOWS_MUSIC    =Settings.value("My Music").toString();
-        WINDOWS_PICTURES =Settings.value("My Pictures").toString();
-        WINDOWS_VIDEO    =Settings.value("My Video").toString();
-        WINDOWS_DOCUMENTS=Settings.value("Personal").toString();
-    #elif defined(Q_OS_LINUX64)
+    #if defined(Q_OS_LINUX64)
         Plateforme="Unix/Linux 64 bits";
     #elif defined(Q_OS_LINUX32)
         Plateforme="Unix/Linux 32 bits";
-    #elif defined(Q_OS_SOLARIS64)
-        Plateforme="Solaris 64 bits";
-    #elif defined(Q_OS_SOLARIS32)
-        Plateforme="Solaris 32 bits";
     #endif
 
     //*******************************************************
     // Now we can construct Global and User ConfigFile value
     //*******************************************************
-    #ifdef Q_OS_WIN
-        UserConfigPath=WINDOWS_APPDATA;
-        if (UserConfigPath[UserConfigPath.length()-1]!=QDir::separator()) UserConfigPath=UserConfigPath+QDir::separator();
-        UserConfigPath  = UserConfigPath+QString(APPLICATION_NAME)+QDir::separator();
-    #else
-        UserConfigPath=QDir::homePath();
-        if (UserConfigPath[UserConfigPath.length()-1]!=QDir::separator()) UserConfigPath=UserConfigPath+QDir::separator();
-        UserConfigPath  = UserConfigPath+"."+QString(APPLICATION_NAME)+QDir::separator();
-    #endif
+    UserConfigPath=QDir::homePath();
+    if (UserConfigPath[UserConfigPath.length()-1]!=QDir::separator()) UserConfigPath=UserConfigPath+QDir::separator();
+    UserConfigPath  = UserConfigPath+"."+QString(APPLICATION_NAME)+QDir::separator();
     GlobalConfigFile=QFileInfo(QString(APPLICATION_NAME)+QString(CONFIGFILEEXT)).absoluteFilePath();
     UserConfigFile  =QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString(CONFIGFILEEXT)).absoluteFilePath();
 
     //************************************
     // set default values for path
     //************************************
-    #ifdef Q_OS_WIN
-        DefaultMediaPath        = WINDOWS_PICTURES;             // Last folder use for image/video
-        DefaultMusicPath        = WINDOWS_MUSIC;                // Last folder use for music
-        DefaultProjectPath      = WINDOWS_DOCUMENTS;            // Last folder use for project
-        DefaultExportPath       = WINDOWS_DOCUMENTS;            // Last folder use for project export
-        DefaultRenderVideoPath  = WINDOWS_VIDEO;                // Last folder use for render video
-        DefaultRenderAudioPath  = WINDOWS_MUSIC;                // Last folder use for render audio
-        DefaultCaptureImage     = WINDOWS_PICTURES;             // Last folder use for captured image
-        DefaultBrowserPath      = WINDOWS_DOCUMENTS;
-        DefaultPositionIconPath = WINDOWS_PICTURES;             // Last folder use for icon of GPS location
-    #else
-        DefaultMediaPath        = QDir::home().absolutePath();  // Last folder use for image/video
-        DefaultMusicPath        = QDir::home().absolutePath();  // Last folder use for music
-        DefaultProjectPath      = QDir::home().absolutePath();  // Last folder use for project
-        DefaultExportPath       = QDir::home().absolutePath();  // Last folder use for project
-        DefaultRenderVideoPath  = QDir::home().absolutePath();  // Last folder use for render video
-        DefaultRenderAudioPath  = QDir::home().absolutePath();  // Last folder use for render audio
-        DefaultCaptureImage     = QDir::home().absolutePath();  // Last folder use for captured image
-        DefaultBrowserPath      = "~";   // User home folder
-        DefaultPositionIconPath = QDir::home().absolutePath();  // Last folder use for icon of GPS location
-    #endif
+    DefaultMediaPath        = QDir::home().absolutePath();  // Last folder use for image/video
+    DefaultMusicPath        = QDir::home().absolutePath();  // Last folder use for music
+    DefaultProjectPath      = QDir::home().absolutePath();  // Last folder use for project
+    DefaultExportPath       = QDir::home().absolutePath();  // Last folder use for project
+    DefaultRenderVideoPath  = QDir::home().absolutePath();  // Last folder use for render video
+    DefaultRenderAudioPath  = QDir::home().absolutePath();  // Last folder use for render audio
+    DefaultCaptureImage     = QDir::home().absolutePath();  // Last folder use for captured image
+    DefaultBrowserPath      = "~";   // User home folder
 }
 
 //====================================================================================================================
@@ -318,14 +186,6 @@ QString cApplicationConfig::GetValideWEBLanguage(QString Language) {
 // Preload system icon images
 void cApplicationConfig::PreloadSystemIcons() {
     ToLog(LOGMSG_INFORMATION,QApplication::translate("MainWindow","Loading system icons..."));
-    #ifdef Q_OS_WIN
-    if (QSysInfo().WindowsVersion>=0x0090) { // At least Windows 7
-        DefaultUSERIcon.LoadIcons(GetIconForFileOrDir("%SystemRoot%\\system32\\imageres.dll",117));
-        DefaultCDROMIcon.LoadIcons(GetIconForFileOrDir("%SystemRoot%\\system32\\shell32.dll",11));
-        DefaultHDDIcon.LoadIcons(GetIconForFileOrDir("%SystemRoot%\\system32\\shell32.dll",8));
-        DefaultFOLDERIcon.LoadIcons(GetIconForFileOrDir("%SystemRoot%\\system32\\shell32.dll",3));
-    }
-    #endif
     if (DefaultCDROMIcon.Icon16.isNull())   DefaultCDROMIcon.LoadIcons(QApplication::style()->standardIcon(QStyle::SP_DriveDVDIcon));   //.LoadIconsFromIMG(  "cdrom.png");
     if (DefaultHDDIcon.Icon16.isNull())     DefaultHDDIcon.LoadIcons(QApplication::style()->standardIcon(QStyle::SP_DriveHDIcon));      //.LoadIconsFromIMG(    "hdd.png");
     if (DefaultUSBIcon.Icon16.isNull())     DefaultUSBIcon.LoadIconsFromIMG(    "usb.png");
@@ -383,13 +243,6 @@ QString cApplicationConfig::GetFilterForMediaFile(FilterFile type) {
 
 //====================================================================================================================
 
-bool cApplicationConfig::DownloadFile(QString FileName) {
-    DownloadObject Download(FileName,this);
-    return Download.Status;
-}
-
-//====================================================================================================================
-
 bool cApplicationConfig::InitConfigurationValues(QString ForceLanguage) {
     //************************************
     // Prepare lists of allowed extension
@@ -403,7 +256,6 @@ bool cApplicationConfig::InitConfigurationValues(QString ForceLanguage) {
     //************************************
     // set language
     //************************************
-    // First thing to do is to load ForceLanguage, UseNetworkProxy and NetworkProxy from USERCONFIGFILE and install AppTranslator to fix text codec !
     QFile           file(UserConfigFile);
     QDomDocument    domDocument;
     QDomElement     root;
@@ -418,11 +270,6 @@ bool cApplicationConfig::InitConfigurationValues(QString ForceLanguage) {
             if ((root.elementsByTagName("GlobalPreferences").length()>0)&&(root.elementsByTagName("GlobalPreferences").item(0).isElement()==true)) {
                 QDomElement Element=root.elementsByTagName("GlobalPreferences").item(0).toElement();
                 if ((Element.hasAttribute("ForceLanguage"))&&(ForceLanguage=="")) ForceLanguage   =Element.attribute("ForceLanguage");
-                if (Element.hasAttribute("UseNetworkProxy"))                      UseNetworkProxy =Element.attribute("UseNetworkProxy")=="1";
-                if (Element.hasAttribute("NetworkProxy"))                         NetworkProxy    =Element.attribute("NetworkProxy");
-                if (Element.hasAttribute("NetworkProxyPort"))                     NetworkProxyPort=Element.attribute("NetworkProxyPort").toInt();
-                if (Element.hasAttribute("NetworkProxyUser"))                     NetworkProxyUser=Element.attribute("NetworkProxyUser");
-                if (Element.hasAttribute("NetworkProxyPWD"))                      NetworkProxyPWD =Element.attribute("NetworkProxyPWD");
             }
         }
     }
@@ -436,157 +283,44 @@ bool cApplicationConfig::InitConfigurationValues(QString ForceLanguage) {
         CurrentSubLanguage=QLocale::system().name().toLower();
     }
 
-    //======================================== Download version files from internet
-
-    QString ActualTRVersion  ="00000000";
-    QString WebTRVersion     ="00000000";
-    QString ActualWIKIVersion="00000000";
-    QString WebWIKIVersion   ="00000000";
-
-    // try to download version from the web site
-    if ((DownloadFile("LOCALEVERSION.TXT"))&&(QFileInfo(UserConfigPath+QString("LOCALEVERSION.TXT")).exists())) {
-        QFile File(UserConfigPath+QString("LOCALEVERSION.TXT"));
-        if (File.open(QFile::ReadOnly | QFile::Text)) {
-            QTextStream InStream(&File);
-            InStream.setCodec("UTF-8");
-            WebTRVersion=InStream.readLine();
-            File.close();
-        }
-
-        // try to download version from the web site
-        if ((DownloadFile("WIKIVERSION.TXT"))&&(QFileInfo(UserConfigPath+QString("WIKIVERSION.TXT")).exists())) {
-            QFile File(UserConfigPath+QString("WIKIVERSION.TXT"));
-            if (File.open(QFile::ReadOnly | QFile::Text)) {
-                QTextStream InStream(&File);
-                InStream.setCodec("UTF-8");
-                WebWIKIVersion=InStream.readLine();
-                File.close();
-            }
-        }
-    }
-
     if (CurrentLanguage!="en") {
-        // try to download locales from the web site
-
         //======================================== INTERFACE
 
-        // get actual version for this language
-        if (QFileInfo(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentSubLanguage)).exists()) {
-            QFile File(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentSubLanguage));
-            if (File.open(QFile::ReadOnly | QFile::Text)) {
-                QTextStream InStream(&File);
-                InStream.setCodec("UTF-8");
-                ActualTRVersion=InStream.readLine();
-                File.close();
-            }
-        } else if (QFileInfo(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentLanguage)).exists()) {
-            QFile File(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentLanguage));
-            if (File.open(QFile::ReadOnly | QFile::Text)) {
-                QTextStream InStream(&File);
-                InStream.setCodec("UTF-8");
-                ActualTRVersion=InStream.readLine();
-                File.close();
-            }
-        }
-
-        // if actual version is outdated or local file not exist in the home folder
-        if ((ActualTRVersion<WebTRVersion)||(
-            (!QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString("_")+QString(CurrentSubLanguage)+QString(".qm")).exists())&&
-            (!QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString("_")+QString(CurrentLanguage)+QString(".qm")).exists()))) {
-
-            if (DownloadFile(QString(APPLICATION_NAME)+QString("_")+QString(CurrentSubLanguage)+QString(".qm"))) {
-                DownloadFile(QString("qt_")+QString(CurrentSubLanguage)+QString(".qm"));
-                if (QFileInfo(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentSubLanguage)).exists()) QFile(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentSubLanguage)).remove();
-                QFile(UserConfigPath+QString("LOCALEVERSION.TXT")).rename(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentSubLanguage));
-            } else if (DownloadFile(QString(APPLICATION_NAME)+QString("_")+QString(CurrentLanguage)+QString(".qm"))) {
-                DownloadFile(QString("qt_")+QString(CurrentLanguage)+QString(".qm"));
-                if (QFileInfo(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentLanguage)).exists()) QFile(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentLanguage)).remove();
-                QFile(UserConfigPath+QString("LOCALEVERSION.TXT")).rename(UserConfigPath+QString("%1_VERSION.TXT").arg(CurrentLanguage));
-            }
-        }
-
-        //======================================== WIKI
-
-        // get actual version for this language
-        if (QFileInfo(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentSubLanguage)).exists()) {
-            QFile File(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentSubLanguage));
-            if (File.open(QFile::ReadOnly | QFile::Text)) {
-                QTextStream InStream(&File);
-                InStream.setCodec("UTF-8");
-                ActualWIKIVersion=InStream.readLine();
-                File.close();
-            }
-        } else if (QFileInfo(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentLanguage)).exists()) {
-            QFile File(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentLanguage));
-            if (File.open(QFile::ReadOnly | QFile::Text)) {
-                QTextStream InStream(&File);
-                InStream.setCodec("UTF-8");
-                ActualWIKIVersion=InStream.readLine();
-                File.close();
-            }
-        }
-
-        // if actual version is outdated or local file not exist in the home folder
-        if ((ActualWIKIVersion<WebWIKIVersion)||(
-            (!QFileInfo(UserConfigPath+QString("wiki_")+QString(CurrentSubLanguage)+QString(".qch")).exists())&&
-            (!QFileInfo(UserConfigPath+QString("wiki_")+QString(CurrentLanguage)+QString(".qch")).exists()))) {
-
-            if (DownloadFile(QString("wiki_")+QString(CurrentSubLanguage)+QString(".qch")) && DownloadFile(QString("wiki_")+QString(CurrentSubLanguage)+QString(".qhc"))) {
-                if (QFileInfo(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentSubLanguage)).exists()) QFile(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentSubLanguage)).remove();
-                QFile(UserConfigPath+QString("WIKIVERSION.TXT")).rename(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentSubLanguage));
-            } else if (DownloadFile(QString("wiki_")+QString(CurrentLanguage)+QString(".qch")) && DownloadFile(QString("wiki_")+QString(CurrentLanguage)+QString(".qhc"))) {
-                if (QFileInfo(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentLanguage)).exists()) QFile(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentLanguage)).remove();
-                QFile(UserConfigPath+QString("WIKIVERSION.TXT")).rename(UserConfigPath+QString("%1_WIKIVERSION.TXT").arg(CurrentLanguage));
-            }
-        }
-
-        //========================================
-
-        // Now, try to use locales
-        if (QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString("_")+QString(CurrentSubLanguage)+QString(".qm")).exists()) {
-
-            // Load translation
-            if (!AppTranslator.load(UserConfigPath+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"))) {
-                ToLog(LOGMSG_WARNING,QString("Error loading application translation file ... ")+UserConfigPath+QString(APPLICATION_NAME)+QString("_")+CurrentSubLanguage+QString(".qm"));
-                exit(1);
+        // Load translations
+        QString translationsPath(QLibraryInfo::location(QLibraryInfo::TranslationsPath));
+        
+        if (AppTranslator.load(QDir::currentPath()+QString("/locale/")+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"))) {
+            ToLog(LOGMSG_INFORMATION,QString("Loading application translation file ... ")+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"));
+            QApplication::installTranslator(&AppTranslator);
+            
+            if (QTtranslator.load(translationsPath+QString("/qtbase_")+CurrentLanguage+QString(".qm"))) {
+                ToLog(LOGMSG_INFORMATION,QString("Loading system QT translation file ... ")+QString("qtbase_")+CurrentLanguage+".qm");
+                QApplication::installTranslator(&QTtranslator);
             } else {
-                ToLog(LOGMSG_INFORMATION,QString("Loading application translation file ... ")+QString(APPLICATION_NAME)+QString("_")+CurrentSubLanguage+QString(".qm"));
-                QApplication::installTranslator(&AppTranslator);
-            }
-
-            if (QFileInfo(UserConfigPath+QString("qt_")+QString(CurrentSubLanguage)+QString(".qm")).exists()) {
-                if (!QTtranslator.load(UserConfigPath+QString("qt_")+CurrentLanguage+QString(".qm"))) {
-                    ToLog(LOGMSG_WARNING,QString("Error loading QT system translation file ... ")+UserConfigPath+QString("qt_")+CurrentSubLanguage+".qm");
-                } else {
-                    ToLog(LOGMSG_INFORMATION,QString("Loading QT system translation file ... ")+QString("qt_")+CurrentSubLanguage+".qm");
+                if (QTtranslator.load(QDir::currentPath()+QString("/locale/")+QString("qt_")+CurrentLanguage+QString(".qm"))) {
+                    ToLog(LOGMSG_INFORMATION,QString("Loading provided QT translation file ... ")+QString("qt_")+CurrentLanguage+".qm");
                     QApplication::installTranslator(&QTtranslator);
                 }
             }
+        } else {
             CurrentLanguage=CurrentSubLanguage;
-
-        } else if (QFileInfo(UserConfigPath+QString(APPLICATION_NAME)+QString("_")+QString(CurrentLanguage)+QString(".qm")).exists()) {
-
-            // Load translation
-            if (!AppTranslator.load(UserConfigPath+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"))) {
-                ToLog(LOGMSG_WARNING,QString("Error loading application translation file ... ")+UserConfigPath+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"));
-                exit(1);
-            } else {
+            if (AppTranslator.load(QDir::currentPath()+QString("/locale/")+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"))) {
                 ToLog(LOGMSG_INFORMATION,QString("Loading application translation file ... ")+QString(APPLICATION_NAME)+QString("_")+CurrentLanguage+QString(".qm"));
                 QApplication::installTranslator(&AppTranslator);
-            }
-
-            if (QFileInfo(UserConfigPath+QString("qt_")+QString(CurrentLanguage)+QString(".qm")).exists()) {
-                if (!QTtranslator.load(UserConfigPath+QString("qt_")+CurrentLanguage+QString(".qm"))) {
-                    ToLog(LOGMSG_WARNING,QString("Error loading QT system translation file ... ")+UserConfigPath+QString("qt_")+CurrentLanguage+".qm");
-                } else {
-                    ToLog(LOGMSG_INFORMATION,QString("Loading QT system translation file ... ")+QString("qt_")+CurrentLanguage+".qm");
+                
+                if (QTtranslator.load(translationsPath+QString("/qtbase_")+CurrentLanguage+QString(".qm"))) {
+                    ToLog(LOGMSG_INFORMATION,QString("Loading system QT translation file ... ")+QString("qtbase_")+CurrentLanguage+".qm");
                     QApplication::installTranslator(&QTtranslator);
+                } else {
+                    if (QTtranslator.load(QDir::currentPath()+QString("/locale/")+QString("qt_")+CurrentLanguage+QString(".qm"))) {
+                        ToLog(LOGMSG_INFORMATION,QString("Loading provided QT translation file ... ")+QString("qt_")+CurrentLanguage+".qm");
+                        QApplication::installTranslator(&QTtranslator);
+                    }
                 }
+            } else {
+                ToLog(LOGMSG_INFORMATION,QString("Language \"%1\" not found : switch to english").arg(CurrentLanguage));
+                CurrentLanguage="en";
             }
-
-        } else {
-            ToLog(LOGMSG_INFORMATION,QString("Language \"%1\" not found : switch to english").arg(CurrentLanguage));
-            CurrentLanguage="en";
         }
     }
 
@@ -641,10 +375,7 @@ bool cApplicationConfig::LoadConfigurationFile(LoadConfigFileType TypeConfigFile
         // Load Global preferences
         if ((root.elementsByTagName("GlobalPreferences").length()>0)&&(root.elementsByTagName("GlobalPreferences").item(0).isElement()==true)) {
             QDomElement Element=root.elementsByTagName("GlobalPreferences").item(0).toElement();
-            #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
             if (Element.hasAttribute("RasterMode"))                 RasterMode              =Element.attribute("RasterMode")=="1";
-            #endif
-            if (Element.hasAttribute("OpenWEBNewVersion"))          OpenWEBNewVersion       =Element.attribute("OpenWEBNewVersion")=="1";
             if (Element.hasAttribute("RestoreWindow"))              RestoreWindow           =Element.attribute("RestoreWindow")=="1";
             if (Element.hasAttribute("RememberLastDirectories"))    RememberLastDirectories =Element.attribute("RememberLastDirectories")=="1";
             if (Element.hasAttribute("DisableTooltips"))            DisableTooltips         =Element.attribute("DisableTooltips")=="1";
@@ -663,7 +394,7 @@ bool cApplicationConfig::LoadConfigurationFile(LoadConfigFileType TypeConfigFile
         if ((root.elementsByTagName("EditorOptions").length()>0)&&(root.elementsByTagName("EditorOptions").item(0).isElement()==true)) {
             QDomElement Element=root.elementsByTagName("EditorOptions").item(0).toElement();
             if (Element.hasAttribute("MemCacheMaxValue"))           MemCacheMaxValue            =Element.attribute("MemCacheMaxValue").toLongLong();
-            #if (!defined(Q_OS_WIN64))&&(defined(Q_OS_WIN32) || defined(Q_OS_LINUX32) || defined(Q_OS_SOLARIS32))
+            #if defined(Q_OS_LINUX32)
             if (MemCacheMaxValue>int64_t(512*1024*1024)) MemCacheMaxValue=int64_t(512*1024*1024);
             #endif
             if (Element.hasAttribute("AppendObject"))               AppendObject                =Element.attribute("AppendObject")=="1";
@@ -684,26 +415,10 @@ bool cApplicationConfig::LoadConfigurationFile(LoadConfigFileType TypeConfigFile
             if (Element.hasAttribute("DefaultTransitionDuration"))  DefaultTransitionDuration   =Element.attribute("DefaultTransitionDuration").toInt();
             if (Element.hasAttribute("AskUserToRemove"))            AskUserToRemove             =Element.attribute("AskUserToRemove")!="0";
             if (Element.hasAttribute("WikiFollowInterface"))        WikiFollowInterface         =Element.attribute("WikiFollowInterface")!="0";
-            if (Element.hasAttribute("UseNetworkProxy"))            UseNetworkProxy             =Element.attribute("UseNetworkProxy")!="0";
-            if (Element.hasAttribute("NetworkProxy"))               NetworkProxy                =Element.attribute("NetworkProxy");
-            if (Element.hasAttribute("NetworkProxyPort"))           NetworkProxyPort            =Element.attribute("NetworkProxyPort").toInt();
-            if (Element.hasAttribute("NetworkProxyUser"))           NetworkProxyUser            =Element.attribute("NetworkProxyUser");
-            if (Element.hasAttribute("NetworkProxyPWD"))            NetworkProxyPWD             =Element.attribute("NetworkProxyPWD");
             if ((Element.hasAttribute("SlideRuler"))&&(Element.attribute("SlideRuler")!="0"))   SlideRuler=RULER_DEFAULT;
             if (Element.hasAttribute("DlgSlideRuler"))              SlideRuler                  =Element.attribute("DlgSlideRuler").toInt();
             if (Element.hasAttribute("ThumbRuler"))                 ThumbRuler                  =Element.attribute("ThumbRuler").toInt();
             if (Element.hasAttribute("FramingRuler"))               FramingRuler                =Element.attribute("FramingRuler")!="0";
-        }
-
-        // Compatibility with version prior to 20131129
-        if ((root.elementsByTagName("BrowserFavorites").length()>0)&&(root.elementsByTagName("BrowserFavorites").item(0).isElement()==true)) {
-            QDomElement Element=root.elementsByTagName("BrowserFavorites").item(0).toElement();
-            int         FavToLoad=0;
-            QStringList BrowserFavorites;
-            if (Element.hasAttribute("FavoritesNumber")) FavToLoad=Element.attribute("FavoritesNumber").toInt();
-            for (int i=0;i<FavToLoad;i++) if (Element.hasAttribute(QString("BrowserFavorites_%1").arg(i))) BrowserFavorites.append(Element.attribute(QString("BrowserFavorites_%1").arg(i)));
-            SaveBrowserFavoritesToDabase(BrowserFavorites);
-            UpgradeConf=true;
         }
 
         if ((root.elementsByTagName("ProjectDefault").length()>0)&&(root.elementsByTagName("ProjectDefault").item(0).isElement()==true)) {
@@ -720,14 +435,6 @@ bool cApplicationConfig::LoadConfigurationFile(LoadConfigFileType TypeConfigFile
             if (Element.hasAttribute("ID3V2Comptatibility"))        ID3V2Comptatibility         =Element.attribute("ID3V2Comptatibility")!="0";
             if (Element.hasAttribute("ShortDateFormat"))            ShortDateFormat             =Element.attribute("ShortDateFormat");
             if (Element.hasAttribute("DistanceUnit"))               DistanceUnit                =(DISTANCEUNIT)Element.attribute("DistanceUnit").toInt();
-
-            // Compatibility with version prior to 1.5
-            if (Element.hasAttribute("SpeedWave")) {
-                DefaultTransitionSpeedWave=Element.attribute("SpeedWave").toInt();
-                DefaultBlockAnimSpeedWave =Element.attribute("SpeedWave").toInt();
-                DefaultImageAnimSpeedWave =Element.attribute("SpeedWave").toInt();
-                UpgradeConf=true;
-            }
 
             if ((Element.elementsByTagName("DefaultBlock_Text").length()>0)&&(Element.elementsByTagName("DefaultBlock_Text").item(0).isElement()==true)) {
                 QDomElement SubElement=Element.elementsByTagName("DefaultBlock_Text").item(0).toElement();
@@ -847,10 +554,7 @@ bool cApplicationConfig::SaveConfigurationFile() {
     // Save preferences
     QDomElement     Element,SubElement,SubSubElement;
     Element=domDocument.createElement("GlobalPreferences");
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     Element.setAttribute("RasterMode",                  RasterMode?"1":"0");
-    #endif
-    Element.setAttribute("OpenWEBNewVersion",           OpenWEBNewVersion?"1":"0");
     Element.setAttribute("RestoreWindow",               RestoreWindow?"1":"0");
     Element.setAttribute("RememberLastDirectories",     RememberLastDirectories?"1":"0");
     Element.setAttribute("DisableTooltips",             DisableTooltips?"1":"0");
@@ -884,11 +588,6 @@ bool cApplicationConfig::SaveConfigurationFile() {
     Element.setAttribute("DefaultTransitionDuration",   DefaultTransitionDuration);
     Element.setAttribute("AskUserToRemove",             AskUserToRemove?"1":"0");
     Element.setAttribute("WikiFollowInterface",         WikiFollowInterface?"1":"0");
-    Element.setAttribute("UseNetworkProxy",             UseNetworkProxy?"1":"0");
-    Element.setAttribute("NetworkProxy",                NetworkProxy);
-    Element.setAttribute("NetworkProxyPort",            NetworkProxyPort);
-    Element.setAttribute("NetworkProxyUser",            NetworkProxyUser);
-    Element.setAttribute("NetworkProxyPWD",             NetworkProxyPWD);
 
     Element.setAttribute("DlgSlideRuler",               SlideRuler);
     Element.setAttribute("ThumbRuler",                  ThumbRuler);
@@ -1147,16 +846,4 @@ void cApplicationConfig::DuplicateRessource(qlonglong *RessourceKey) {
     if (ImgCache->CacheRenderImage)  NewImgCache->CacheRenderImage =new QImage(*ImgCache->CacheRenderImage);
     NewImgCache->ByteCount=ImgCache->ByteCount;
     ImagesCache.List.prepend(NewImgCache);
-}
-
-//====================================================================================================================
-// return a QNetworkAccessManager object configured with proxy if needed
-
-QNetworkAccessManager *cApplicationConfig::GetNetworkAccessManager(QObject *parent) {
-    QNetworkAccessManager *NAM=new QNetworkAccessManager(parent);
-    if (UseNetworkProxy) {
-        QNetworkProxy Proxy(QNetworkProxy::HttpProxy,NetworkProxy,NetworkProxyPort,NetworkProxyUser,NetworkProxyPWD);
-        NAM->setProxy(Proxy);
-    }
-    return NAM;
 }

@@ -52,10 +52,8 @@ HelpPopup::HelpPopup(cApplicationConfig *ApplicationConfig,QWidget *):QCustomDia
 
     setAttribute(Qt::WA_AlwaysShowToolTips);
     setWindowModality(Qt::NonModal);
-    #ifndef Q_OS_WIN
     setWindowFlags(Qt::Window);
-    #endif
-
+    
     WikiFollowInterface=&ApplicationConfig->WikiFollowInterface;
     DisableContentChange=false;
 

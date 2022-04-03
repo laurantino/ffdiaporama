@@ -40,34 +40,19 @@ void PostEvent(int EventType,QString EventParam) {
 bool    PreviousBreak=true;
 QMutex  LogMutex;
 
-#ifdef Q_OS_WIN
-std::string toAscii(QString tab) {
-    char buffer[2048];
-    CharToOemA(tab.toLocal8Bit().constData(), buffer);
-    std::string str(buffer);
-    return str;
-}
-#endif
-
 void ToLog(int MessageType,QString Message,QString Source,bool AddBreak) {
     LogMutex.lock();
     if ((MessageType>=LogMsgLevel)&&(PreviousBreak)) {
         QString DateTime=QTime::currentTime().toString("hh:mm:ss.zzz");
-        #ifdef Q_OS_WIN
-        if (Message.endsWith("\n")) Message=Message.left(Message.length()-QString("\n").length());
-        if (Message.endsWith(char(10))) Message=Message.left(Message.length()-QString(char(10)).length());
-        if (Message.endsWith(char(13))) Message=Message.left(Message.length()-QString(char(13)).length());
-        if (Message.endsWith(char(10))) Message=Message.left(Message.length()-QString(char(10)).length());
-        #endif
         QString MSG="";
-        if ((Message!="LIBAV: No accelerated colorspace conversion found from yuv422p to rgb24.")&&
-            (Message!="LIBAV: Increasing reorder buffer to 1")&&
-            (!Message.startsWith("LIBAV: Reference"))&&
-            (!Message.startsWith("LIBAV: error while decoding MB"))&&
-            (!Message.startsWith("LIBAV: left block unavailable for requested"))&&
-            (!Message.startsWith("LIBAV: max_analyze_duration reached"))&&
-            (!(Message.startsWith("LIBAV: mode:") && Message.contains("parity:") && (Message.contains("auto_enable:")||Message.contains("deint:"))))&&
-            (!(Message.startsWith("LIBAV: w:") && Message.contains("h:") && Message.contains("pixfmt:")))
+        if ((Message!="FFMPEG: No accelerated colorspace conversion found from yuv422p to rgb24.")&&
+            (Message!="FFMPEG: Increasing reorder buffer to 1")&&
+            (!Message.startsWith("FFMPEG: Reference"))&&
+            (!Message.startsWith("FFMPEG: error while decoding MB"))&&
+            (!Message.startsWith("FFMPEG: left block unavailable for requested"))&&
+            (!Message.startsWith("FFMPEG: max_analyze_duration reached"))&&
+            (!(Message.startsWith("FFMPEG: mode:") && Message.contains("parity:") && (Message.contains("auto_enable:")||Message.contains("deint:"))))&&
+            (!(Message.startsWith("FFMPEG: w:") && Message.contains("h:") && Message.contains("pixfmt:")))
            ) {
             switch (MessageType) {
                 case LOGMSG_DEBUGTRACE:    MSG=QString("["+DateTime+":DEBUG]\t"     +Message+(AddBreak?"\n":""));  break;
@@ -78,43 +63,25 @@ void ToLog(int MessageType,QString Message,QString Source,bool AddBreak) {
         }
         if (!MSG.isEmpty()) {
             if ((MessageType!=LOGMSG_DEBUGTRACE)&&(EventReceiver!=NULL)) PostEvent(EVENT_GeneralLogChanged,QString("%1###:###%2###:###%3").arg((int)MessageType).arg(Message).arg(Source));
-            #ifdef Q_OS_WIN
-            std::cout << toAscii(MSG) << std::flush;
-            if (MSG.endsWith("\n")) MSG=MSG.left(MSG.indexOf("\n"));
-            #else
             std::cout << MSG.toLocal8Bit().constData() << std::flush;
-            #endif
         }
         PreviousBreak=((AddBreak)||(Message.endsWith("\n")));
     } else if (MessageType>=LogMsgLevel) {
-        #ifdef Q_OS_WIN
-        std::cout << toAscii(Message) << std::flush;
-        #else
         std::cout << Message.toLocal8Bit().constData() << std::flush;
-        #endif
     }
     LogMutex.unlock();
 }
 
-#if QT_VERSION >= 0x050000
 void QTMessageOutput(QtMsgType type,const QMessageLogContext &,const QString &msg) {
-     switch (type) {
-        case QtDebugMsg:    ToLog(LOGMSG_INFORMATION,msg);  break;
-        case QtWarningMsg:  ToLog(LOGMSG_INFORMATION,msg);  break;
-        case QtCriticalMsg: ToLog(LOGMSG_CRITICAL,msg);     break;
-        case QtFatalMsg:    ToLog(LOGMSG_CRITICAL,msg);     break;
-     }
- }
-#else
-void QTMessageOutput(QtMsgType type,const char *msg) {
-     switch (type) {
-        case QtDebugMsg:    ToLog(LOGMSG_DEBUGTRACE,msg);   break;
-        case QtWarningMsg:  ToLog(LOGMSG_INFORMATION,msg);  break;
-        case QtCriticalMsg: ToLog(LOGMSG_CRITICAL,msg);     break;
-        case QtFatalMsg:    ToLog(LOGMSG_CRITICAL,msg);     break;
-     }
- }
-#endif
+    switch (type) {
+      case QtInfoMsg:     ToLog(LOGMSG_INFORMATION,msg);  break;
+      case QtDebugMsg:    ToLog(LOGMSG_INFORMATION,msg);  break;
+      case QtWarningMsg:  ToLog(LOGMSG_INFORMATION,msg);  break;
+      case QtCriticalMsg: ToLog(LOGMSG_CRITICAL,msg);     break;
+      case QtFatalMsg:    ToLog(LOGMSG_CRITICAL,msg);     break;
+    }
+}
+
 //====================================================================================================================
 
 double GetDoubleValue(QDomElement CorrectElement,QString Name) {

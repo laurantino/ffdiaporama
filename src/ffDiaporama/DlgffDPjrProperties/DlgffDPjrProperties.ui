@@ -648,16 +648,6 @@ This option sets the value of the velocity curves for use whenever the correspon
          </property>
         </widget>
        </item>
-       <item row="10" column="0">
-        <widget class="QLabel" name="label_4">
-         <property name="text">
-          <string>Event location:</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-         </property>
-        </widget>
-       </item>
        <item row="1" column="1">
         <widget class="QComboBox" name="GeometryCombo">
          <property name="toolTip">
@@ -693,115 +683,6 @@ Note: This field is only editable when the dialog box is opened for creating a n
           <bool>true</bool>
          </property>
         </widget>
-       </item>
-       <item row="10" column="1" colspan="2">
-        <layout class="QHBoxLayout" name="horizontalLayout_3">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QFrame" name="LocationFrame">
-           <property name="minimumSize">
-            <size>
-             <width>10</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="styleSheet">
-            <string notr="true">QFrame {
-background-color: white;
-border: 1px solid darkgray;
-}</string>
-           </property>
-           <property name="frameShape">
-            <enum>QFrame::Box</enum>
-           </property>
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <property name="spacing">
-             <number>2</number>
-            </property>
-            <property name="leftMargin">
-             <number>2</number>
-            </property>
-            <property name="topMargin">
-             <number>0</number>
-            </property>
-            <property name="rightMargin">
-             <number>2</number>
-            </property>
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="LocationIcon">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>16</width>
-                <height>16</height>
-               </size>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">QFrame {
-background-color: transparent;
-border: 0;
-}</string>
-              </property>
-              <property name="text">
-               <string notr="true"/>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="Location">
-              <property name="styleSheet">
-               <string notr="true">QFrame {
-background-color: transparent;
-border: 0;
-}</string>
-              </property>
-              <property name="text">
-               <string notr="true"/>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="LocationBT">
-           <property name="toolTip">
-            <string>Select the location of the event of the project</string>
-           </property>
-           <property name="text">
-            <string notr="true"/>
-           </property>
-           <property name="icon">
-            <iconset resource="../RSCffDiaporama.qrc">
-             <normaloff>:/img/EditGMaps.png</normaloff>:/img/EditGMaps.png</iconset>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="ClearLocationBT">
-           <property name="toolTip">
-            <string>Clear this location</string>
-           </property>
-           <property name="text">
-            <string notr="true"/>
-           </property>
-           <property name="icon">
-            <iconset resource="../RSCffDiaporama.qrc">
-             <normaloff>:/img/trash.png</normaloff>:/img/trash.png</iconset>
-           </property>
-          </widget>
-         </item>
-        </layout>
        </item>
       </layout>
      </widget>
@@ -904,8 +785,6 @@ border: 0;
   <tabstop>DateEdit</tabstop>
   <tabstop>OverrideDateCB</tabstop>
   <tabstop>DateED</tabstop>
-  <tabstop>LocationBT</tabstop>
-  <tabstop>ClearLocationBT</tabstop>
   <tabstop>CommentED</tabstop>
   <tabstop>TransitionSpeedWaveCB</tabstop>
   <tabstop>BlockSpeedWaveCB</tabstop>

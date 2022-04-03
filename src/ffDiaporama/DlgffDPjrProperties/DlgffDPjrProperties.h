@@ -34,9 +34,6 @@ Q_OBJECT
 public:
     cDiaporama          *ffdProject;
     bool                IsPrjCreate;
-    bool                IsLocationChanged;
-    bool                AllowGMapRefresh;
-
     explicit DlgffDPjrProperties(bool IsPrjCreate,cDiaporama *ffdProject,cApplicationConfig *ApplicationConfig,QWidget *parent = 0);
     ~DlgffDPjrProperties();
 
@@ -57,8 +54,6 @@ private slots:
     void                AdminEditThumb();
     void                ExportThumb();
     void                ThumbChanged();
-    void                SelectLocation();
-    void                ClearLocation();
 
 private:
     Ui::DlgffDPjrProperties *ui;

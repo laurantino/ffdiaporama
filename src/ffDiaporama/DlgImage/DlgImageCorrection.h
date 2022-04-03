@@ -27,7 +27,6 @@
 
 #include "DlgImage/wgt_QEditImage/wgt_QEditImage.h"
 #include "DlgImage/wgt_QEditVideo/wgt_QEditVideo.h"
-#include "DlgImage/wgt_QGMapsMap/wgt_QGMapsMap.h"
 
 namespace Ui {
     class DlgImageCorrection;
@@ -68,7 +67,7 @@ public:
 
     virtual void            AppendPartialUndo(int ActionType,QWidget *FocusWindow,bool ForceAdd);
     virtual void            PreparePartialUndo(int ActionType,QDomElement root,bool DuplicateRessource);
-    virtual void            ApplyPartialUndo(int ActionType,QDomElement root);
+    virtual void            ApplyPartialUndo(QDomElement root);
 
     virtual void            RefreshControls();
 
@@ -84,13 +83,11 @@ protected slots:
 private:
     void                    CreateImageTag(bool AllowChangeFile);
     void                    CreateVideoTag();
-    void                    CreateGMapsTag();
 
     Ui::DlgImageCorrection  *ui;
     QHBoxLayout             *TabLayout;
     wgt_QEditImage          *ImageWidget;
     wgt_QEditVideo          *VideoWidget;
-    wgt_QGMapsMap           *GMapsWidget;
 };
 
 #endif // DLGIMAGECORRECTION_H

@@ -26,11 +26,7 @@
 #include "engine/_Diaporama.h"
 #include "CustomCtrl/QCustomRuler.h"
 
-#if QT_VERSION >= 0x050000
 #include <QtMultimedia/QAudioOutput>
-#else
-#include <QAudioOutput>
-#endif
 
 namespace Ui {
     class DlgEditMusic;
@@ -63,7 +59,7 @@ public:
     QFutureWatcher<void>    ThreadPrepareMusic;
     QFutureWatcher<void>    ThreadAnalyseMusic;
 
-    u_int8_t                *AudioBuf;
+    uint8_t                *AudioBuf;
     int                     AudioBufSize;
     QAudioOutput            *audio_outputStream;
     QIODevice               *audio_outputDevice;

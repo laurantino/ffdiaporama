@@ -228,7 +228,7 @@ void DlgManageDevices::DBImageSizeCombo(int) {
     for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) {
         QString StrA=List[j].mid(List[j].lastIndexOf(":")+1);       StrA=StrA.left(StrA.indexOf("#"));
         QString StrB=List[j+1].mid(List[j+1].lastIndexOf(":")+1);   StrB=StrB.left(StrB.indexOf("#"));
-        if (StrA.toInt()>StrB.toInt()) List.swap(j,j+1);
+        if (StrA.toInt()>StrB.toInt()) List.swapItemsAt(j,j+1);
     }
     // Fill combo
     for (int i=0;i<List.count();i++) {
@@ -272,7 +272,7 @@ void DlgManageDevices::DBFileFormatCombo(int /*ChangeIndex*/) {
         if ((Index<NBR_VIDEOCODECDEF)&&(VIDEOCODECDEF[Index].IsFind)) List.append(QString("%1#####%2").arg(VIDEOCODECDEF[Index].LongName).arg(Index));
     }
     // Sort List
-    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
     // Fill combo
     for (int i=0;i<List.count();i++) {
         Codec=List[i].left(List[i].indexOf("#####"));
@@ -301,7 +301,7 @@ void DlgManageDevices::DBFileFormatCombo(int /*ChangeIndex*/) {
         if ((Index<NBR_AUDIOCODECDEF)&&(AUDIOCODECDEF[Index].IsFind)) List.append(QString("%1#####%2").arg(AUDIOCODECDEF[Index].LongName).arg(Index));
     }
     // Sort List
-    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
     // Fill combo
     for (int i=0;i<List.count();i++) {
         Codec=List[i].left(List[i].indexOf("#####"));
@@ -394,7 +394,7 @@ void DlgManageDevices::DBVideoBitRateCB(int) {
             int     NumA=NameA.toInt();
             QString NameB=List[j+1];    if (NameB.endsWith("k")) NameB=NameB.left(NameB.length()-1);
             int     NumB=NameB.toInt();
-            if (NumA>NumB) List.swap(j,j+1);
+            if (NumA>NumB) List.swapItemsAt(j,j+1);
         }
         // Fill Combo box
         ui->DBVideoBitRateCB->addItems(List);
@@ -441,7 +441,7 @@ void DlgManageDevices::DBAudioBitRateCB(int) {
             int     NumA=NameA.toInt();
             QString NameB=List[j+1];    if (NameB.endsWith("k")) NameB=NameB.left(NameB.length()-1);
             int     NumB=NameB.toInt();
-            if (NumA>NumB) List.swap(j,j+1);
+            if (NumA>NumB) List.swapItemsAt(j,j+1);
         }
         // Fill Combo box
         ui->DBAudioBitRateCB->addItems(List);

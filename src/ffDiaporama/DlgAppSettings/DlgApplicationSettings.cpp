@@ -66,17 +66,12 @@ void DlgApplicationSettings::DoInitDialog() {
     //********************************
 
     // Application options
-    ui->OpenWEBNewVersionCH->setChecked(ApplicationConfig->OpenWEBNewVersion);
     ui->RememberLastDirectoriesCH->setChecked(ApplicationConfig->RememberLastDirectories);
     ui->RestoreWindowCH->setChecked(ApplicationConfig->RestoreWindow);
     ui->DisableTooltipsCB->setChecked(ApplicationConfig->DisableTooltips);
-    #if (defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)) && (QT_VERSION < 0x050000)
-        ui->RasterModeCB->setChecked(ApplicationConfig->RasterMode);
-    #else
-        ui->RasterModeCB->setVisible(false);
-    #endif
+    ui->RasterModeCB->setVisible(false);
 
-    #if (!defined(Q_OS_WIN64))&&(defined(Q_OS_WIN32) || defined(Q_OS_LINUX32) || defined(Q_OS_SOLARIS32))
+    #if defined(Q_OS_LINUX32)
         if      (ApplicationConfig->MemCacheMaxValue<=int64_t(256*1024*1024))     ui->MemCacheProfilCB->setCurrentIndex(0);
         else if (ApplicationConfig->MemCacheMaxValue<=int64_t(512*1024*1024))     ui->MemCacheProfilCB->setCurrentIndex(1);
         else ui->MemCacheProfilCB->setCurrentIndex(2);
@@ -103,14 +98,6 @@ void DlgApplicationSettings::DoInitDialog() {
     ui->UnitCB->setCurrentIndex(ApplicationConfig->DisplayUnit);
     ui->AppendObjectCB->setCurrentIndex(ApplicationConfig->AppendObject?1:0);
     ui->AskUserToRemove->setChecked(ApplicationConfig->AskUserToRemove);
-
-    // Network settings
-    ui->ProxyCB->setChecked(ApplicationConfig->UseNetworkProxy);
-    ui->ProxyAddrED->setText(ApplicationConfig->NetworkProxy);
-    ui->ProxyPortED->setText(ApplicationConfig->NetworkProxyPort?QString("%1").arg(ApplicationConfig->NetworkProxyPort):"");
-    ui->ProxyLoginED->setText(ApplicationConfig->NetworkProxyUser);
-    ui->ProxyPWDED->setText(ApplicationConfig->NetworkProxyPWD);
-    s_ProxyChanged();
 
     // Various options
     ui->ShortDateFmtCB->setCurrentIndex(ui->ShortDateFmtCB->findText(ApplicationConfig->ShortDateFormat));
@@ -324,7 +311,6 @@ void DlgApplicationSettings::DoInitDialog() {
     connect(ui->CheckConfigBT,SIGNAL(clicked()),this,SLOT(s_CheckConfig()));
     connect(ui->DBManageDevicesBT,SIGNAL(clicked()),this,SLOT(s_ManageDevices()));
     connect(ui->tabWidget,SIGNAL(currentChanged(int)),this,SLOT(TabChanged(int)));
-    connect(ui->ProxyCB,SIGNAL(clicked()),this,SLOT(s_ProxyChanged()));
 
     ui->Profile_HQ_CB->setCurrentIndex(ui->Profile_HQ_CB->findText(ApplicationConfig->Profile_HQ));
     ui->Profile_PQ_CB->setCurrentIndex(ui->Profile_PQ_CB->findText(ApplicationConfig->Profile_PQ));
@@ -379,7 +365,7 @@ QStringList DlgApplicationSettings::StringToSortedStringList(QString String) {
         double  NumA=NameA.toDouble();
         QString NameB=StringList[j+1];    if (NameB.endsWith("k")) NameB=NameB.left(NameB.length()-1);
         double  NumB=NameB.toDouble();
-        if (NumA>NumB) StringList.swap(j,j+1);
+        if (NumA>NumB) StringList.swapItemsAt(j,j+1);
     }
     return StringList;
 }
@@ -391,13 +377,10 @@ bool DlgApplicationSettings::DoAccept() {
     ToLog(LOGMSG_DEBUGTRACE,"IN:DlgApplicationSettings::DoAccept");
 
     // Application options part
-    ApplicationConfig->OpenWEBNewVersion        =ui->OpenWEBNewVersionCH->isChecked();
     ApplicationConfig->RememberLastDirectories  =ui->RememberLastDirectoriesCH->isChecked();
     ApplicationConfig->RestoreWindow            =ui->RestoreWindowCH->isChecked();
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     ApplicationConfig->RasterMode               =ui->RasterModeCB->isChecked();
-    #endif
-
+    
     // Preview Options part
     ApplicationConfig->Smoothing                =ui->SmoothImageDuringPreviewCB->isChecked();
     ApplicationConfig->PreviewFPS               =GetDoubleValue(ui->PreviewFrameRateCB->currentText());
@@ -411,13 +394,6 @@ bool DlgApplicationSettings::DoAccept() {
         case 1  : ApplicationConfig->MemCacheMaxValue=int64_t(512*int64_t(1024*1024));     break;
         default : ApplicationConfig->MemCacheMaxValue=int64_t(256*int64_t(1024*1024));     break;
     }
-
-    // Network settings
-    ApplicationConfig->UseNetworkProxy =ui->ProxyCB->isChecked();
-    ApplicationConfig->NetworkProxy    =ui->ProxyAddrED->text();
-    ApplicationConfig->NetworkProxyPort=ui->ProxyPortED->text().toInt();
-    ApplicationConfig->NetworkProxyUser=ui->ProxyLoginED->text();
-    ApplicationConfig->NetworkProxyPWD =ui->ProxyPWDED->text();
 
     // Editor Options part
     ApplicationConfig->AppendObject                 =ui->AppendObjectCB->currentIndex()==1;
@@ -573,15 +549,6 @@ void DlgApplicationSettings::s_ManageDevices() {
 
 //====================================================================================================================
 
-void DlgApplicationSettings::s_ProxyChanged() {
-    ui->ProxyAddrED->setEnabled(ui->ProxyCB->isChecked());      ui->ProxyAddrLabel->setEnabled(ui->ProxyCB->isChecked());
-    ui->ProxyPortED->setEnabled(ui->ProxyCB->isChecked());      ui->ProxyPortLabel->setEnabled(ui->ProxyCB->isChecked());
-    ui->ProxyLoginED->setEnabled(ui->ProxyCB->isChecked());     ui->ProxyLoginLabel->setEnabled(ui->ProxyCB->isChecked());
-    ui->ProxyPWDED->setEnabled(ui->ProxyCB->isChecked());       ui->ProxyPWDLabel->setEnabled(ui->ProxyCB->isChecked());
-}
-
-//====================================================================================================================
-
 void DlgApplicationSettings::TabChanged(int) {
     ToLog(LOGMSG_DEBUGTRACE,"IN:DlgApplicationSettings::TabChanged");
     if (ui->tabWidget->currentIndex()==2) {
@@ -607,7 +574,7 @@ void DlgApplicationSettings::InitImageSizeCombo(int) {
     for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) {
         QString StrA=List[j].mid(List[j].lastIndexOf(":")+1);       StrA=StrA.left(StrA.indexOf("#"));
         QString StrB=List[j+1].mid(List[j+1].lastIndexOf(":")+1);   StrB=StrB.left(StrB.indexOf("#"));
-        if (StrA.toInt()>StrB.toInt()) List.swap(j,j+1);
+        if (StrA.toInt()>StrB.toInt()) List.swapItemsAt(j,j+1);
     }
     // Fill combo
     for (int i=0;i<List.count();i++) {
@@ -652,7 +619,7 @@ void DlgApplicationSettings::FileFormatCombo(int ChangeIndex) {
         }
     }
     // Sort List
-    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
     // Fill combo
     for (int i=0;i<List.count();i++) {
         Codec=List[i].left(List[i].indexOf("#####"));
@@ -688,7 +655,7 @@ void DlgApplicationSettings::FileFormatCombo(int ChangeIndex) {
         }
     }
     // Sort List
-    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
     // Fill combo
     for (int i=0;i<List.count();i++) {
         Codec=List[i].left(List[i].indexOf("#####"));
@@ -734,7 +701,7 @@ void DlgApplicationSettings::SoundtrackFileFormatCombo(int ChangeIndex) {
         }
     }
     // Sort List
-    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
     // Fill combo
     for (int i=0;i<List.count();i++) {
         Codec=List[i].left(List[i].indexOf("#####"));
