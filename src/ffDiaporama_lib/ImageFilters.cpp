@@ -49,16 +49,16 @@ struct rgba {
     b+=((weight))*(qBlue((pixel)));
 
 typedef struct {
-    u_int32_t red,green,blue,alpha;
+    uint32_t red,green,blue,alpha;
 } IntegerPixel;
 
 typedef struct {
-    u_int16_t red,green,blue,alpha;
+    uint16_t red,green,blue,alpha;
 } ShortPixel;
 
 typedef struct {
     // Yes,a normal pixel can be used instead but this is easier to read and no shifts to get components.
-    u_int8_t red,green,blue,alpha;
+    uint8_t red,green,blue,alpha;
 } CharPixel;
 
 typedef struct {
@@ -66,7 +66,7 @@ typedef struct {
 } FloatPixel;
 
 typedef struct {
-    u_int32_t red,green,blue,alpha;
+    uint32_t red,green,blue,alpha;
 } HistogramListItem;
 
 QRgb ConvertFromPremult(QRgb p) {
@@ -125,11 +125,11 @@ QRgb interpolate255(QRgb x, unsigned int a,QRgb y, unsigned int b) {
 
 // Adapt From fmt_filters<http://ksquirrel.sourceforge.net/subprojects.php>
 void FltBrightness(QImage &Img,int32_t bn) {
-    u_int8_t *bits;
+    uint8_t *bits;
     int32_t  val;
 
     for (int y=0;y<Img.height();++y) {
-        bits=(u_int8_t*)Img.bits()+Img.width()*y*sizeof(rgba);
+        bits=(uint8_t*)Img.bits()+Img.width()*y*sizeof(rgba);
         for (int x=0;x<Img.width();x++) {
             for (int v=0;v<3;v++) {
                 val =bn+*bits;
@@ -163,9 +163,9 @@ void FltContrast(QImage &Img,int32_t contrast) {
     }
 
     int32_t  S=Img.width()*Img.height();
-    u_int8_t Ravg=Ra/S;
-    u_int8_t Gavg=Ga/S;
-    u_int8_t Bavg=Ba/S;
+    uint8_t Ravg=Ra/S;
+    uint8_t Gavg=Ga/S;
+    uint8_t Bavg=Ba/S;
 
     // Now change contrast with the terms of alghoritm:
     //  if contrast>0: I=(I-Avg)*256 / (256-contrast)+Avg
@@ -197,13 +197,13 @@ void FltGamma(QImage &Img,double L) {
     if (L==0||L<0) L=0.01;
 
     rgba       *_rgba;
-    u_int8_t    R,G,B;
-    u_int8_t    GT[256];
+    uint8_t    R,G,B;
+    uint8_t    GT[256];
 
     GT[0]=0;
 
     // fill the array with gamma koefficients
-    for (int32_t x=1;x<256;++x)	GT[x]=(u_int8_t)floor(255*pow((double)x/255.0,1.0/L));
+    for (int32_t x=1;x<256;++x)	GT[x]=(uint8_t)floor(255*pow((double)x/255.0,1.0/L));
 
     // now change gamma
     for (int32_t y=0;y<Img.height();y++) {
@@ -223,7 +223,7 @@ void FltGamma(QImage &Img,double L) {
 
 // Adapt From fmt_filters<http://ksquirrel.sourceforge.net/subprojects.php>
 void FltColorize(QImage &Img,int32_t red,int32_t green,int32_t blue) {
-    u_int8_t   *bits;
+    uint8_t   *bits;
     int32_t     val;
     int32_t     V[3]={red,green,blue};
 

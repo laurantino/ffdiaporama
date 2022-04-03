@@ -116,11 +116,7 @@ void cShotTableItemDelegate::paint(QPainter *Painter,const QStyleOptionViewItem 
     QFont font= QApplication::font();
     int   FontFactor=((ParentTable->DiaporamaObject->Parent->ApplicationConfig->TimelineHeight-TIMELINEMINHEIGH)/20)*10;
     TempPainter.setFont(font);
-    #ifdef Q_OS_WIN
-    font.setPointSizeF(double(110+FontFactor)/double(TempPainter.fontMetrics().boundingRect("0").height()));                  // Scale font
-    #else
     font.setPointSizeF((double(140+FontFactor)/double(TempPainter.fontMetrics().boundingRect("0").height()))*ScreenFontAdjust);// Scale font
-    #endif
     TempPainter.setFont(font);
     Pen.setWidth(1);
     Pen.setStyle(Qt::SolidLine);
@@ -157,13 +153,9 @@ cCustomShotTable::cCustomShotTable(QWidget *parent):QTableWidget(parent) {
     IsDragOn        =0;
     DiaporamaObject =NULL;
 
-    #if QT_VERSION >= 0x050000
     horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    #else
-    horizontalHeader()->setResizeMode(QHeaderView::Fixed);
-    verticalHeader()->setResizeMode(QHeaderView::Fixed);
-    #endif
+
     setSelectionBehavior(QAbstractItemView::SelectItems);
     setSelectionMode(QAbstractItemView::SingleSelection);
 

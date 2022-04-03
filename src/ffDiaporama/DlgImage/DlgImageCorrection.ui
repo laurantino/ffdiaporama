@@ -95,20 +95,6 @@ When rulers are enabled, the mouse will automatically snap to the edges of the p
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="ExportMapBT">
-       <property name="toolTip">
-        <string>Export current map to a file</string>
-       </property>
-       <property name="text">
-        <string>Export map</string>
-       </property>
-       <property name="icon">
-        <iconset resource="../RSCffDiaporama.qrc">
-         <normaloff>:/img/filesave.png</normaloff>:/img/filesave.png</iconset>
-       </property>
-      </widget>
-     </item>
-     <item>
       <widget class="QLabel" name="StatusBar">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">

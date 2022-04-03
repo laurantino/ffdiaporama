@@ -28,91 +28,6 @@ double  ScreenFontAdjust=1;                     // System Font adjustement
 double  ScaleFontAdjust=0;
 int     SCALINGTEXTFACTOR=700;                  // 700 instead of 400 (ffD 1.0/1.1/1.2) to keep similar display from plaintext to richtext
 
-#ifdef Q_OS_WIN
-
-    bool IsWindowsXP=false;
-
-    #include <windows.h>
-    #include <winbase.h>
-    #include <stdio.h>
-
-    #if QT_VERSION<0x050000
-
-        // set low fragmentation heap to remove memory error
-        // from http://social.msdn.microsoft.com/forums/en-US/vclanguage/thread/7eec66a1-07b5-47aa-816d-7c1d7f7be274
-        // NOTE: To enable the low-fragmentation heap when running under a debugger, set the _NO_DEBUG_HEAP environment variable to 1.
-        void SetLFHeap() {
-
-            // Re-attach stdio if application was started from a console
-            BOOL (WINAPI *pAttachConsole)(DWORD dwProcessId);
-            pAttachConsole = (BOOL (WINAPI*)(DWORD))
-            GetProcAddress(LoadLibraryA("kernel32.dll"), "AttachConsole");
-
-            if (pAttachConsole != NULL && pAttachConsole(((DWORD)-1))) {
-               if (_fileno(stdout) < 0) freopen("CONOUT$","wb",stdout);
-               if (_fileno(stderr) < 0) freopen("CONOUT$","wb",stderr);
-               if (_fileno(stdin) < 0)  freopen("CONIN$","rb",stdin);
-               std::ios::sync_with_stdio(); // Fix C++
-            }
-
-            // Check Windows System Version
-            if (QSysInfo().WindowsVersion<0x0030) {     // prior to Windows XP
-
-                ToLog(LOGMSG_CRITICAL,"Sorry but this application can't work on this system");
-                exit(1);
-
-            } else if (QSysInfo().WindowsVersion==0x0030) {    // If Windows XP
-
-                IsWindowsXP=true;
-
-                // Why would we have have to code it the hard way, that is by pulling the function out of the kernel32.dll?
-                // VS 6.0 doesn't have the API defined in its headers.
-
-                // Missing enum borrowed from: C:\Program Files\Microsoft Visual Studio 8\VC\PlatformSDK\Include\WinNT.h(8815)
-                typedef enum _HEAP_INFORMATION_CLASS {
-                    HeapCompatibilityInformation
-                } HEAP_INFORMATION_CLASS;
-
-                // Function pointer prototype
-                typedef BOOL (WINAPI *Function_HeapSetInformation) (HANDLE, HEAP_INFORMATION_CLASS, PVOID, SIZE_T);
-
-                WCHAR WinFileName[256+1];
-                MultiByteToWideChar(CP_ACP,0,QString("kernel32.dll").toLocal8Bit(),-1,WinFileName,256+1);
-                HMODULE hKernel32 = GetModuleHandle(WinFileName);
-
-                if(hKernel32) {
-                    Function_HeapSetInformation heapSetInfo;
-                    ULONG heapFlags = 2;  // LFH == 2
-                    HANDLE hProcessHeap = GetProcessHeap();
-                    heapSetInfo = (Function_HeapSetInformation)GetProcAddress(hKernel32, "HeapSetInformation");
-                    if (heapSetInfo) {
-                        if(heapSetInfo(hProcessHeap, HeapCompatibilityInformation, &heapFlags, sizeof(ULONG))) {
-                            ToLog(LOGMSG_INFORMATION,"DLLMain's Request for Low Fragmentation Heap for the Process Heap Successful");
-                        } else {
-                            ToLog(LOGMSG_WARNING,"DLLMain's Request for Low Fragmentation Heap for the Process Heap Unsuccessful.  Will Run with the Standard Heap Allocators");
-                        }
-                        #if _MSC_VER >= 1300
-                        // no way to get the pointer to the CRT heap in VC 6.0 (_crtheap)
-                        if(heapSetInfo((HANDLE)_get_heap_handle(), HeapCompatibilityInformation, &heapFlags, sizeof(ULONG))) {
-                            ToLog(LOGMSG_INFORMATION,"DLLMain's Request for Low Fragmentation for the CRT Heap Successful");
-                        } else {
-                            ToLog(LOGMSG_WARNING,"DLLMain's Request for Low Fragmentation for the CRT Heap Unsuccessful.  Will Run with the Standard Heap Allocators");
-                        }
-                        #endif
-                    } else {
-                        ToLog(LOGMSG_WARNING,"DllMain unable to GetProcAddress for HeapSetInformation");
-                    }
-                } else {
-                    ToLog(LOGMSG_WARNING,"DllMain unable to GetModuleHandle(kernel32.dll)");
-                }
-                // Only try to set the heap once.  If it fails, live with it.
-            }
-            // If > Windows/XP : nothing to do !
-        }
-    #endif
-
-#endif
-
 //====================================================================================================================
 
 QString UpInitials(QString Source) {
@@ -124,7 +39,8 @@ QString UpInitials(QString Source) {
 //====================================================================================================================
 
 QString FormatLongDate(QDate EventDate) {
-    return UpInitials(EventDate.toString(Qt::DefaultLocaleLongDate));
+    QLocale loc = QLocale::system();
+    return UpInitials(EventDate.toString(loc.dateFormat(QLocale::LongFormat)));
 }
 
 //====================================================================================================================
@@ -203,15 +119,7 @@ QString GetTextSize(int64_t Size) {
 //See : http://lists.trolltech.com/qt-interest/2006-05/thread00922-0.html
 int getCpuCount() {
     ToLog(LOGMSG_DEBUGTRACE,"IN:getCpuCount");
-    int cpuCount=1;
-
-    #ifdef Q_OS_WIN
-    SYSTEM_INFO    si;
-    GetSystemInfo(&si);
-    cpuCount = si.dwNumberOfProcessors;
-    #elif defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-    cpuCount = sysconf(_SC_NPROCESSORS_ONLN);
-    #endif
+    int cpuCount= sysconf(_SC_NPROCESSORS_ONLN);
     if(cpuCount<1) cpuCount=1;
     return cpuCount;
 }

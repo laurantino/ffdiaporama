@@ -177,8 +177,6 @@ void DlgRenderVideo::DoInitDialog() {
         ui->DeviceModelCB->setVisible(false);
         ui->DeviceModelLabel->setVisible(false);
         ui->RenderFormatText->setVisible(false);
-        //ui->VideoFormatCB->view()->setFixedWidth(400);
-        //ui->AudioFormatCB->view()->setFixedWidth(400);
 
         // Init format container combo
         for (int i=0;i<VFORMAT_NBR;i++) if (FORMATDEF[i].IsFind) {
@@ -375,7 +373,7 @@ QStringList DlgRenderVideo::StringToSortedStringList(QString String) {
     for (int i=0;i<StringList.count();i++) for (int j=0;j<StringList.count()-1;j++) {
         if (StringList[j].endsWith("k"))    NumA=StringList[j].left(StringList[j].length()-1).toDouble()*1000;      else NumA=StringList[j].toDouble();
         if (StringList[j+1].endsWith("k"))  NumB=StringList[j+1].left(StringList[j+1].length()-1).toDouble()*1000;  else NumB=StringList[j+1].toDouble();
-        if (NumA>NumB) StringList.swap(j,j+1);
+        if (NumA>NumB) StringList.swapItemsAt(j,j+1);
     }
     return StringList;
 }
@@ -414,7 +412,7 @@ void DlgRenderVideo::InitImageSizeCombo(int) {
     for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) {
         QString StrA=List[j].mid(List[j].lastIndexOf(":")+1);       StrA=StrA.left(StrA.indexOf("#"));
         QString StrB=List[j+1].mid(List[j+1].lastIndexOf(":")+1);   StrB=StrB.left(StrB.indexOf("#"));
-        if (StrA.toInt()>StrB.toInt()) List.swap(j,j+1);
+        if (StrA.toInt()>StrB.toInt()) List.swapItemsAt(j,j+1);
     }
     // Fill combo
     for (int i=0;i<List.count();i++) {
@@ -494,7 +492,7 @@ void DlgRenderVideo::FileFormatCombo(int) {
             }
         }
         // Sort List
-        for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+        for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
         // Fill combo
         for (int i=0;i<List.count();i++) {
             Codec=List[i].left(List[i].indexOf("#####"));
@@ -537,7 +535,7 @@ void DlgRenderVideo::FileFormatCombo(int) {
     }
 
     // Sort List
-    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swap(j,j+1);
+    for (int i=0;i<List.count();i++) for (int j=0;j<List.count()-1;j++) if (List[j]>List[j+1]) List.swapItemsAt(j,j+1);
     // Fill combo
     for (int i=0;i<List.count();i++) {
         Codec=List[i].left(List[i].indexOf("#####"));
@@ -786,9 +784,6 @@ void DlgRenderVideo::InitDisplay() {
         ui->InfoLabelB2->setVisible(false);
         ui->InfoLabelA3->setVisible(false);
         ui->InfoLabelB3->setVisible(false);
-        ui->SlideProgressBarLabel->setVisible(false);
-        ui->SlideNumberLabel->setVisible(false);
-        ui->SlideProgressBar->setVisible(false);
     }
 
     // Audio part
@@ -819,10 +814,8 @@ void DlgRenderVideo::OnTimer() {
                             QApplication::translate("DlgRenderVideo"," - Estimated time left : ")+
                             QString("%1").arg(QTime(0,0,0,0).addMSecs(EstimDur*1000).toString("hh:mm:ss")));
     ui->FPSLabel->setText(QString("%1").arg(double(Encoder.RenderedFrame)/(double(DurationProcess)/1000),0,'f',1));
-    if (Encoder.VideoStream) {
-        ui->SlideNumberLabel->setText(QString("%1/%2").arg(Encoder.Column-Encoder.FromSlide+1).arg(Encoder.ToSlide-Encoder.FromSlide+1));
-        ui->FrameNumberLabel->setText(QString("%1/%2").arg(Encoder.RenderedFrame).arg(Encoder.NbrFrame));
-    }
+    ui->SlideNumberLabel->setText(QString("%1/%2").arg(Encoder.Column-Encoder.FromSlide+1).arg(Encoder.ToSlide-Encoder.FromSlide+1));
+    ui->FrameNumberLabel->setText(QString("%1/%2").arg(Encoder.RenderedFrame).arg(Encoder.NbrFrame));
     ui->SlideProgressBar->setValue(Encoder.Position!=-1?int(double(Encoder.Position-Encoder.ColumnStart)/(double(AV_TIME_BASE)/Encoder.dFPS/double(1000))):ui->SlideProgressBar->maximum());
     ui->TotalProgressBar->setValue(Encoder.RenderedFrame);
 }
@@ -1102,7 +1095,7 @@ void DlgRenderVideo::EndThreadEncode() {
         int Index=ApplicationConfig->ThumbnailModels->SearchModel(Diaporama->ThumbnailName);
         if (Index>=0) {
             QSize  ForcedThumbnailSize(THUMBWITH,THUMBHEIGHT);
-            QImage Image=ApplicationConfig->ThumbnailModels->List[Index]->PrepareImage(0,Diaporama,Diaporama->ProjectThumbnail,&ForcedThumbnailSize);
+            QImage Image=ApplicationConfig->ThumbnailModels->List[Index]->PrepareImage(1,Diaporama,Diaporama->ProjectThumbnail,&ForcedThumbnailSize);
             Image.save(ThumbFileName,0,100);
         }
     }
@@ -1140,7 +1133,7 @@ void DlgRenderVideo::EndThreadEncode() {
         if (CustomMessageBox(this,QMessageBox::Information,QApplication::translate("DlgRenderVideo","Render video"),
                              ExportMode!=MODE_SOUNDTRACK?QApplication::translate("DlgRenderVideo","Job completed successfully!\nDo you want to open the video now?"):
                              QApplication::translate("DlgRenderVideo","Job completed successfully!\nDo you want to open the audio track now?"),
-                             QMessageBox::Yes|QMessageBox::Close,QMessageBox::Yes)==QMessageBox::Yes)
+                             QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes)==QMessageBox::Yes)
             QDesktopServices::openUrl(QUrl().fromLocalFile(OutputFileName));
     } else if (Encoder.StopProcessWanted) CustomMessageBox(this,QMessageBox::Information,QApplication::translate("DlgRenderVideo","Render video"),QApplication::translate("DlgRenderVideo","Job canceled!"));
         else                              CustomMessageBox(this,QMessageBox::Information,QApplication::translate("DlgRenderVideo","Render video"),QApplication::translate("DlgRenderVideo","Job error!\nPlease contact ffDiaporama team"));

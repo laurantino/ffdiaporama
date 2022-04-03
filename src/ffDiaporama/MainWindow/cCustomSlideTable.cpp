@@ -128,7 +128,7 @@ void QCustomThumbItemDelegate::paint(QPainter *Painter,const QStyleOptionViewIte
         bool             IsTransition=((Object->TransitionFamilly!=0)||(Object->TransitionSubType!=0));
         QPointF          Table[10];
 
-        Painter->setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform|QPainter::HighQualityAntialiasing|QPainter::NonCosmeticDefaultPen);
+        Painter->setRenderHints(QPainter::Antialiasing|QPainter::TextAntialiasing|QPainter::SmoothPixmapTransform);
         Painter->setClipRect(QRectF(option.rect.x(),option.rect.y(),option.rect.width(),option.rect.height()));
         // Fill background
         Painter->fillRect(option.rect,QColor(WidgetBackground_Color));
@@ -153,13 +153,8 @@ void QCustomThumbItemDelegate::paint(QPainter *Painter,const QStyleOptionViewIte
         QFont smallFont = QApplication::font();
 
         Painter->setFont(normalFont);
-        #ifdef Q_OS_WIN
-        normalFont.setPointSizeF(double(110+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()));                         // Scale font
-        smallFont.setPointSizeF ((double(110+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()))*0.8);                   // Scale font
-        #else
         normalFont.setPointSizeF((double(140+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust);      // Scale font
         smallFont.setPointSizeF ((double(140+FontFactor)/double(Painter->fontMetrics().boundingRect("0").height()))*ScreenFontAdjust*0.8);  // Scale font
-        #endif
 
         //==========================================================================================================================
         // Track BACKGROUND (first 1/4 height of the slide)
@@ -620,13 +615,8 @@ cCustomSlideTable::cCustomSlideTable(QWidget *parent):QTableWidget(parent) {
 
     setItemDelegate(new QCustomThumbItemDelegate(this));
 
-    #if QT_VERSION >= 0x050000
-        horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-        verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    #else
-        horizontalHeader()->setResizeMode(QHeaderView::Fixed);
-        verticalHeader()->setResizeMode(QHeaderView::Fixed);
-    #endif
+    horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     setAcceptDrops(true);
 }
 
@@ -975,7 +965,7 @@ void cCustomSlideTable::mouseDoubleClickEvent(QMouseEvent *event) {
 
 void cCustomSlideTable::wheelEvent(QWheelEvent *event) {
     if (!PartitionMode) {
-        int numDegrees = event->delta() / 8;
+        int numDegrees = (event->angleDelta().x() + event->angleDelta().y()) / 8;
         int numSteps = numDegrees / 15;
 
         SetCurrentCell(Diaporama->CurrentCol-numSteps);

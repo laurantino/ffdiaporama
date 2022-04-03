@@ -44,9 +44,6 @@ public:
     bool                    StopMajFramingStyle;
     bool                    InDisplayDuration;
 
-    // specific flag for GMapsObject
-    bool                    RedoneStyleCoordinate;
-
     // specific for adding files
     QStringList             FileList;
     int                     PositionToInsert;
@@ -165,7 +162,6 @@ private slots:
     void            s_BlockSettings_BlockAnimDissolveType(int);
 
     void            s_BlockTable_AddSpecialBlock();
-    void            s_BlockTable_AddGMapsMapBlock();
     void            s_BlockTable_AddImageClipboard();
 
 private:

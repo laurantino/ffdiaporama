@@ -28,7 +28,7 @@ isEmpty(PREFIX) {
     PREFIX = /usr
 }
 
-# this file is to be used by qmake for Windows & Linux
+# this file is to be used by qmake for Linux
 TEMPLATE        = subdirs
 
 # ffDiaporama_lib (c++ classes and functions that are rarely modified)
@@ -38,6 +38,13 @@ TARGET          += ffDiaporama_lib
 # ffDiaporama main application
 SUBDIRS         += src/ffDiaporama
 TARGET          += ffDiaporama
+
+# ffDiaporama resources
+SUBDIRS         += ffDiaporama_rsc
+
+# ffDiaporama texturemate
+SUBDIRS         += ffDiaporama_texturemate
+ffDiaporama_texturemate.depends = ffDiaporama_rsc
 
 # Translation files
 TRANSLATIONS += locale/ffDiaporama_cz.ts \

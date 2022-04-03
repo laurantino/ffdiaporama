@@ -1593,8 +1593,8 @@ Ad esempio, se il progetto è &quot;mia vacanza da 1 a 15&quot;, il capitolo pu�
         <translation>Architettura applicazione: 64 bit</translation>
     </message>
     <message>
-        <source>LIBAV general version:</source>
-        <translation>LIBAV versione generale:</translation>
+        <source>FFMPEG version:</source>
+        <translation>FFMPEG versione generale:</translation>
     </message>
     <message>
         <source>Here are listed the components used and their status:
@@ -6190,8 +6190,8 @@ Vuoi aprirlo comunque?</translation>
         <translation>Cattura l&apos;immagine</translation>
     </message>
     <message>
-        <source>Starting libav...</source>
-        <translation>Avvio libav...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>Avvio ffmpeg...</translation>
     </message>
     <message>
         <source>Switch display to file explorer mode</source>
@@ -8393,7 +8393,7 @@ Esempio: se Y=25 % del primo trimestre nella parte superiore dell&apos;immagine 
     </message>
     <message>
         <source>Video stream start position is %1</source>
-        <translation type="unfinished"></translation>
+        <translation>La posizione di inizio del flusso video è %1</translation>
     </message>
 </context>
 <context>
@@ -8681,7 +8681,7 @@ La parte blu rappresenta la parte del video che viene selezionata (che verrà ut
     <message>
         <source>Change the sound volume</source>
         <extracomment>Tooltip in dialog box</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Regola il volume</translation>
     </message>
 </context>
 </TS>

@@ -56,7 +56,7 @@ void DlgCheckConfig::DoInitDialog() {
     ui->ListWidget->addItem(new QListWidgetItem(QString("%1 %2 (%3) ...").arg(APPLICATION_NAME).arg(CurrentAppName).arg(CurrentAppVersion)));
     ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","Operating system version: %1 - %2 Core/CPU").arg(ApplicationConfig->Plateforme).arg(getCpuCount())));
 
-    #if (!defined(Q_OS_WIN64))&&(defined(Q_OS_WIN32) || defined(Q_OS_LINUX32) || defined(Q_OS_SOLARIS32))
+    #if defined(Q_OS_LINUX32)
     ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","Application architecture: 32 bits")));
     #else
     ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","Application architecture: 64 bits")));
@@ -78,7 +78,6 @@ void DlgCheckConfig::DoInitDialog() {
     ui->ListWidget->addItem(new QListWidgetItem(""));
     ui->ListWidget->addItem(new QListWidgetItem(QApplication::translate("DlgCheckConfig","QT version: %1").arg(qVersion())));
     ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","Detected system locale: %1").arg(ApplicationConfig->CurrentLanguage)));
-    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","Translation file loaded: %1").arg(QDir::toNativeSeparators(QDir().absoluteFilePath(QString("locale")+QDir::separator()+QString("locale_")+ApplicationConfig->CurrentLanguage+".qm")))));
     ui->ListWidget->addItem(new QListWidgetItem(""));
 
     // exiv2
@@ -88,18 +87,14 @@ void DlgCheckConfig::DoInitDialog() {
     ui->ListWidget->addItem(new QListWidgetItem(Exiv2WithPreview?QIcon(ICON_GREEN):QIcon(ICON_YELLOW),StatusStr));
     ui->ListWidget->addItem(new QListWidgetItem(""));
 
-    // libav
-    ui->ListWidget->addItem(new QListWidgetItem("FFMPEG/LIBAV"));
-    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVUTIL version: %1.%2.%3.%4") .arg(LIBAVUTIL_VERSION_MAJOR) .arg(LIBAVUTIL_VERSION_MINOR) .arg(LIBAVUTIL_VERSION_MICRO) .arg(avutil_version())));
-    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVCODEC version: %1.%2.%3.%4") .arg(LIBAVCODEC_VERSION_MAJOR) .arg(LIBAVCODEC_VERSION_MINOR) .arg(LIBAVCODEC_VERSION_MICRO) .arg(avcodec_version())));
-    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVFORMAT version: %1.%2.%3.%4").arg(LIBAVFORMAT_VERSION_MAJOR).arg(LIBAVFORMAT_VERSION_MINOR).arg(LIBAVFORMAT_VERSION_MICRO).arg(avformat_version())));
-    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVFILTER version: %1.%2.%3.%4").arg(LIBAVFILTER_VERSION_MAJOR).arg(LIBAVFILTER_VERSION_MINOR).arg(LIBAVFILTER_VERSION_MICRO).arg(avfilter_version())));
-    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBSWSCALE version: %1.%2.%3.%4") .arg(LIBSWSCALE_VERSION_MAJOR) .arg(LIBSWSCALE_VERSION_MINOR) .arg(LIBSWSCALE_VERSION_MICRO) .arg(swscale_version())));
-    #if defined(LIBAV)
-        ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVRESAMPLE version: %1.%2.%3.%4") .arg(LIBAVRESAMPLE_VERSION_MAJOR) .arg(LIBAVRESAMPLE_VERSION_MINOR) .arg(LIBAVRESAMPLE_VERSION_MICRO).arg(avresample_version())));
-    #elif defined(FFMPEG)
-        ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBSWRESAMPLE version: %1.%2.%3.%4") .arg(LIBSWRESAMPLE_VERSION_MAJOR) .arg(LIBSWRESAMPLE_VERSION_MINOR) .arg(LIBSWRESAMPLE_VERSION_MICRO).arg(swresample_version())));
-    #endif
+    // ffmpeg
+    ui->ListWidget->addItem(new QListWidgetItem(QApplication::translate("DlgCheckConfig","FFMPEG version: %1").arg(FFMPEG_VERSION)));
+    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVUTIL version: %1.%2.%3").arg(LIBAVUTIL_VERSION_MAJOR).arg(LIBAVUTIL_VERSION_MINOR).arg(LIBAVUTIL_VERSION_MICRO)));
+    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVCODEC version: %1.%2.%3").arg(LIBAVCODEC_VERSION_MAJOR).arg(LIBAVCODEC_VERSION_MINOR).arg(LIBAVCODEC_VERSION_MICRO)));
+    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVFORMAT version: %1.%2.%3").arg(LIBAVFORMAT_VERSION_MAJOR).arg(LIBAVFORMAT_VERSION_MINOR).arg(LIBAVFORMAT_VERSION_MICRO)));
+    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBAVFILTER version: %1.%2.%3").arg(LIBAVFILTER_VERSION_MAJOR).arg(LIBAVFILTER_VERSION_MINOR).arg(LIBAVFILTER_VERSION_MICRO)));
+    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBSWSCALE version: %1.%2.%3").arg(LIBSWSCALE_VERSION_MAJOR).arg(LIBSWSCALE_VERSION_MINOR).arg(LIBSWSCALE_VERSION_MICRO)));
+    ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","LIBSWRESAMPLE version: %1.%2.%3").arg(LIBSWRESAMPLE_VERSION_MAJOR).arg(LIBSWRESAMPLE_VERSION_MINOR).arg(LIBSWRESAMPLE_VERSION_MICRO)));
 
     if ((AUDIOCODECDEF[7].IsFind)&&(VIDEOCODECDEF[8].IsFind)&&(FORMATDEF[2].IsFind)) ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_GREEN),QApplication::translate("DlgCheckConfig","Lossless rendering")+" "+QApplication::translate("DlgCheckConfig","available")));
         else ui->ListWidget->addItem(new QListWidgetItem(QIcon(ICON_RED),QApplication::translate("DlgCheckConfig","Lossless rendering")+" "+QApplication::translate("DlgCheckConfig","not available")));

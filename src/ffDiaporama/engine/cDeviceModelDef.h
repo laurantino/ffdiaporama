@@ -30,11 +30,8 @@
 #include <QtXml/QDomDocument>
 #include <QtXml/QDomElement>
 
-// Include some common various class
-//#include "cApplicationConfig.h"
-
 //****************************************************************************************************************************************************************
-// LIBAV inclusion
+// FFMPEG inclusion
 //****************************************************************************************************************************************************************
 
 extern "C" {
@@ -48,105 +45,27 @@ extern "C" {
 #include <libavfilter/version.h>
 #include <libavformat/version.h>
 #include <libavutil/avutil.h>
+#include <libavutil/ffversion.h>
 #include <libavutil/opt.h>
-#include <libswscale/swscale.h>
 
 #include <libavutil/mathematics.h>
 #include <libavutil/pixdesc.h>
-
+#include <libavutil/imgutils.h>
 #include <libavcodec/avcodec.h>
 
 #include <libavformat/avformat.h>
 #include <libavformat/avio.h>
 
-#include "libavfilter/avfilter.h"
-#if LIBAVFILTER_VERSION_INT < AV_VERSION_INT(3,8,0)
-    #include "libavfilter/avfiltergraph.h"
-#endif
+#include <libavfilter/avfilter.h>
+#include <libavfilter/buffersink.h>
+#include <libavfilter/buffersrc.h>
 
-#if (LIBAVUTIL_VERSION_MICRO<100)&&(LIBAVCODEC_VERSION_MICRO<100)&&(LIBAVFORMAT_VERSION_MICRO<100)&&(LIBAVDEVICE_VERSION_MICRO<100)&&(LIBAVFILTER_VERSION_MICRO<100)&&(LIBSWSCALE_VERSION_MICRO<100)
-    #define LIBAV
-    #if ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(53,3,0))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(55,34,1))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(55,12,0))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(54,0,0))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(4,2,0))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,1,2)))
-        #define LIBAVVERSION        "Libav 10 or higher"
-        #define LIBAVVERSIONINT     10
-        #include "libavresample/avresample.h"
-        #define RESAMPLE_MAX_CHANNELS AVRESAMPLE_MAX_CHANNELS
-        #include "libavfilter/buffersink.h"
-        #include "libavfilter/buffersrc.h"
-    #elif ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(52,3,0))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(54,35,0))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(54,20,0))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(53,2,0))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(3,3,0))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,1,1)))
-        #define LIBAVVERSION        "Libav 9.x"
-        #define LIBAVVERSIONINT     9
-        #include "libavresample/avresample.h"
-        #define RESAMPLE_MAX_CHANNELS AVRESAMPLE_MAX_CHANNELS
-        #include "libavfilter/buffersink.h"
-        #include "libavfilter/buffersrc.h"
-    #elif ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(51,22,1))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(53,35,0))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(53,21,1))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(53,2,0))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(2,15,0))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,1,0)))
-        #define LIBAVVERSION        "Libav 0.8.x"
-        #define LIBAVVERSIONINT     8
-        #define AVCodecID           CodecID
-        #include "libavfilter/buffersrc.h"
-        #include "libavfilter/vsrc_buffer.h"
-    #else
-        // unsupported version
-    #endif
-#elif (LIBAVUTIL_VERSION_MICRO>=100)&&(LIBAVCODEC_VERSION_MICRO>=100)&&(LIBAVFORMAT_VERSION_MICRO>=100)&&(LIBAVDEVICE_VERSION_MICRO>=100)&&(LIBAVFILTER_VERSION_MICRO>=100)&&(LIBSWSCALE_VERSION_MICRO>=100)
-    #define FFMPEG
-    #include "libswresample/swresample.h"
-    #include "libavcodec/avcodec.h"
-    #include "libavfilter/buffersink.h"
-    #include "libavfilter/buffersrc.h"
-    #if     ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(54,15,100))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(56,13,100))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(56,15,102))&&   \
-             (LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(56,3,100))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(5,2,103))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(3,1,101))&&   \
-             (LIBSWRESAMPLE_VERSION_INT>=AV_VERSION_INT(1,1,100)))
-    #define FFMPEGVERSIONINT    250
-        #define FFMPEGVERSION       "FFmpeg 2.5 or higher"
-        #define RESAMPLE_MAX_CHANNELS 32
-    #elif   ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(52,66,100))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(55,52,102))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(55,33,100))&& \
-             (LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(55,10,100))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(4,2,100))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,5,102))&&   \
-             (LIBSWRESAMPLE_VERSION_INT>=AV_VERSION_INT(0,18,100)))
-        #define FFMPEGVERSIONINT    220
-        #define FFMPEGVERSION       "FFmpeg 2.2 or higher"
-    #elif     ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(52,48,100))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(55,39,100))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(55,19,104))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(55,5,100))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(3,90,100))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,5,101))&&(LIBSWRESAMPLE_VERSION_INT>=AV_VERSION_INT(0,17,104)))
-        #define FFMPEGVERSIONINT    210
-        #define FFMPEGVERSION       "FFmpeg 2.1 or higher"
-    #elif   ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(52,38,100))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(55,18,102))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(55,12,100))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(55,3,100))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(3,79,101))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,3,100))&&(LIBSWRESAMPLE_VERSION_INT>=AV_VERSION_INT(0,17,102)))
-        #define FFMPEGVERSIONINT    201
-        #define FFMPEGVERSION       "FFmpeg 2.0.1 or higher"
-    #elif ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(52,18,100))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(54,92,100))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(54,63,104))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(54,3,103))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(3,42,103))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,2,100))&&(LIBSWRESAMPLE_VERSION_INT>=AV_VERSION_INT(0,17,102)))
-        #define FFMPEGVERSIONINT    123
-        #define FFMPEGVERSION       "FFmpeg 1.2.3 or higher"
-    #elif ((LIBAVUTIL_VERSION_INT>=AV_VERSION_INT(52,13,100))&&(LIBAVCODEC_VERSION_INT>=AV_VERSION_INT(54,86,100))&&(LIBAVFORMAT_VERSION_INT>=AV_VERSION_INT(54,59,106))&&(LIBAVDEVICE_VERSION_INT>=AV_VERSION_INT(54,3,102))&&(LIBAVFILTER_VERSION_INT>=AV_VERSION_INT(3,32,100))&&(LIBSWSCALE_VERSION_INT>=AV_VERSION_INT(2,1,103))&&(LIBSWRESAMPLE_VERSION_INT>=AV_VERSION_INT(0,17,102)))
-        #define FFMPEGVERSIONINT    115
-        #define FFMPEGVERSION       "FFmpeg 1.1.5 or higher"
-    #else
-        // unsupported version
-    #endif
-    #if (FFMPEGVERSIONINT >=250)
-   #define RESAMPLE_MAX_CHANNELS 32
-    #else
-   #define RESAMPLE_MAX_CHANNELS SWR_CH_MAX
-    #endif
- #endif
+#include <libswresample/swresample.h>
+#include <libswscale/swscale.h>
+
+#define AVRESAMPLE_MAX_CHANNELS 32
+#define AVCODEC_MAX_AUDIO_FRAME_SIZE 192000
 }
-
-#ifndef AVCODEC_MAX_AUDIO_FRAME_SIZE
-    #define AVCODEC_MAX_AUDIO_FRAME_SIZE 192000
-#endif
-
-#if !defined(avcodec_free_frame)
-    #define avcodec_free_frame  av_freep
-#endif
-
-// Remove error with MSVC and AV_TIME_BASE_Q
-#ifdef _MSC_VER
-    #undef AV_TIME_BASE_Q
-    extern AVRational AV_TIME_BASE_Q;
-#endif
-
-//****************************************************************************************************************************************************************
-
-AVFrame *ALLOCFRAME();
-void    FREEFRAME(AVFrame **Buf);
 
 //****************************************************************************************************************************************************************
 
@@ -229,20 +148,18 @@ extern int       ORDERIMAGENAME[2][NBR_SIZEDEF];                // Display order
 #define     VCODECST_WMV1       "WMV1"                          // String Windows Media Video 7
 #define     VCODEC_WMV2         10                              // Windows Media Video 8
 #define     VCODECST_WMV2       "WMV2"                          // String Windows Media Video 8
-#define     VCODEC_WMV3         11                              // Windows Media Video 9
-#define     VCODECST_WMV3       "WMV3"                          // String Windows Media Video 9
 
 struct sVideoCodecDef {
-    bool    IsFind,IsRead;                                      // true if codec is supported for write,read by installed version of libav
-    int     Codec_id;                                           // libav codec id
+    bool    IsFind,IsRead;                                      // true if codec is supported for write,read by installed version of ffmpeg
+    int     Codec_id;                                           // ffmpeg codec id
     int     FFD_VCODEC;                                         // ffDiaporama video codec id
     char    FFD_VCODECST[10];                                   // ffDiaporama video codec id string
-    char    ShortName[50];                                      // short name of the codec (copy of the libav value)
+    char    ShortName[50];                                      // short name of the codec (copy of the ffmpeg value)
     char    LongName[200];                                      // long name of the codec (define by this application)
     char    PossibleBitrate[200];                               // list of possible compression bit rate (define by this application)
     char    DefaultBitrate[2][NBR_SIZEDEF][10];                 // prefered compression bit rate for each possible size
 };
-#define NBR_VIDEOCODECDEF   12
+#define NBR_VIDEOCODECDEF   11
 extern struct sVideoCodecDef VIDEOCODECDEF[NBR_VIDEOCODECDEF];
 
 //============================================
@@ -250,9 +167,9 @@ extern struct sVideoCodecDef VIDEOCODECDEF[NBR_VIDEOCODECDEF];
 //============================================
 
 struct sAudioCodecDef {
-    bool    IsFind,IsRead;                                      // true if codec is supported for write,read by installed version of libav
-    int     Codec_id;                                           // libav codec id
-    char    ShortName[50];                                      // short name of the codec (copy of the libav value)
+    bool    IsFind,IsRead;                                      // true if codec is supported for write,read by installed version of ffmpeg
+    int     Codec_id;                                           // ffmpeg codec id
+    char    ShortName[50];                                      // short name of the codec (copy of the ffmpeg value)
     char    LongName[200];                                      // long name of the codec (define by this application)
     char    PossibleBitrate2CH[200];                            // list of possible compression bit rate in stereo mode (define by this application)
     bool    Possibly6CH;                                        // true if this codec support 5.1/6 chanels mode
@@ -284,8 +201,8 @@ enum VFORMAT_ID {
 };
 
 struct sFormatDef {
-    bool    IsFind,IsRead;                                      // true if format container is supported for write,read by installed version of libav
-    char    ShortName[50];                                      // short name of the format container (copy of the libav value)
+    bool    IsFind,IsRead;                                      // true if format container is supported for write,read by installed version of ffmpeg
+    char    ShortName[50];                                      // short name of the format container (copy of the ffmpeg value)
     char    FileExtension[10];                                  // prefered file extension for the format container (define by this application)
     char    LongName[200];                                      // long name of the codec (define by this application)
     char    PossibleVideoCodec[200];                            // list of possible video codec for this format container (using VCODECST String define)
@@ -317,7 +234,7 @@ class cDeviceModelDef {
 public:
     bool    FromGlobalConf;                                     // true if device model is defined in global config file
     bool    FromUserConf;                                       // true if device model is defined in user config file
-    bool    IsFind;                                             // true if device model format is supported by installed version of Libav
+    bool    IsFind;                                             // true if device model format is supported by installed version of ffmpeg
     int     DeviceIndex;                                        // Device number index key
     QString DeviceName;                                         // long name for the device model
     int     DeviceType;                                         // device type
@@ -367,7 +284,7 @@ public:
     virtual bool    LoadFromXML(QDomElement domDocument,LoadConfigFileType TypeConfigFile);
 
     virtual void    TranslatRenderType();
-    virtual bool    InitLibav();
+    virtual bool    InitFFMPEG();
 };
 
 //============================================
@@ -383,8 +300,8 @@ extern QString AllowMusicExtensions;                            // List of all f
 // Various
 //============================================
 
-extern QMutex  Mutex;                                           // Mutex used to control multithreaded operations for LIBAV
-extern int     LastLibAvMessageLevel;                           // Last level of message received from LIBAV
+extern QMutex  Mutex;                                           // Mutex used to control multithreaded operations for ffmpeg
+extern int     LastFFMPEGmessageLevel;                           // Last level of message received from ffmpeg
 
 QString GetAvErrorMessage(int ErrorCode);
 

@@ -53,7 +53,7 @@ cBackgroundObject::cBackgroundObject(QString FileName,cBaseAppConfig *AppConfig)
     ApplicationConfig   =AppConfig;
     qlonglong FolderKey =ApplicationConfig->FoldersTable->GetFolderKey(QFileInfo(FileName).absolutePath());
     IsValide            =false;
-    ModifDateTime       =QFileInfo(FileName).created();
+    ModifDateTime       =QFileInfo(FileName).lastModified();
     Name                =QFileInfo(FileName).baseName();
     FileKey             =ApplicationConfig->FilesTable->GetFileKey(FolderKey,QFileInfo(FileName).fileName(),OBJECTTYPE_IMAGEFILE);
 

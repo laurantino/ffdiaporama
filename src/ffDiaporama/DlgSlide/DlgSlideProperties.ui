@@ -3481,18 +3481,6 @@ Note: Hidden video blocks are automatically paused</string>
     <string>Append to credit title models</string>
    </property>
   </action>
-  <action name="actionAddGMapsMap">
-   <property name="icon">
-    <iconset resource="../RSCffDiaporama.qrc">
-     <normaloff>:/img/gmap.png</normaloff>:/img/gmap.png</iconset>
-   </property>
-   <property name="text">
-    <string>Add a GMaps map</string>
-   </property>
-   <property name="toolTip">
-    <string>Add a map from Google maps</string>
-   </property>
-  </action>
   <action name="actionAddImageClipboard">
    <property name="icon">
     <iconset resource="../RSCffDiaporama.qrc">

@@ -672,7 +672,7 @@ void cShotComposer::s_BlockTable_MoveBlockUp() {
     if (BlockSelectMode!=SELECTMODE_ONE) return;
     if (CurrentCompoObjectNbr<1) return;
     AppendPartialUndo(UNDOACTION_FULL_SLIDE,BlockTable,true);
-    CompositionList->List.swap(CurrentCompoObjectNbr,CurrentCompoObjectNbr-1);
+    CompositionList->List.swapItemsAt(CurrentCompoObjectNbr,CurrentCompoObjectNbr-1);
     // Reset thumbs if needed
     ResetThumbs(false);
     // Reset blocks table
@@ -686,7 +686,7 @@ void cShotComposer::s_BlockTable_MoveBlockDown() {
     if (BlockSelectMode!=SELECTMODE_ONE) return;
     if (CurrentCompoObjectNbr>=CompositionList->List.count()-1) return;
     AppendPartialUndo(UNDOACTION_FULL_SLIDE,BlockTable,true);
-    CompositionList->List.swap(CurrentCompoObjectNbr+1,CurrentCompoObjectNbr);
+    CompositionList->List.swapItemsAt(CurrentCompoObjectNbr+1,CurrentCompoObjectNbr);
     // Reset thumbs if needed
     ResetThumbs(false);
     // Reset blocks table
@@ -786,7 +786,7 @@ void cShotComposer::s_BlockTable_DistributeHoriz() {
     // 2nd step : sort blocks
     for (int i=0;i<List.count();i++)
         for (int j=0;j<List.count()-1;j++)
-            if (List[j].Position>List[j+1].Position) List.swap(j,j+1);
+            if (List[j].Position>List[j+1].Position) List.swapItemsAt(j,j+1);
 
     // Last step : move blocks
     for (int i=0;i<List.count();i++) {
@@ -814,7 +814,7 @@ void cShotComposer::s_BlockTable_DistributeVert() {
     // 2nd step : sort blocks
     for (int i=0;i<List.count();i++)
         for (int j=0;j<List.count()-1;j++)
-            if (List[j].Position>List[j+1].Position) List.swap(j,j+1);
+            if (List[j].Position>List[j+1].Position) List.swapItemsAt(j,j+1);
 
     // Last step : move blocks
     for (int i=0;i<List.count();i++) {

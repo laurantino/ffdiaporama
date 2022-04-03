@@ -24,7 +24,7 @@
 
 void DisplayLastSQLError(QSqlQuery *Query) {
     ToLog(LOGMSG_CRITICAL,Query->lastQuery());
-    ToLog(LOGMSG_CRITICAL,QString("Error %1:%2").arg(Query->lastError().number()).arg(Query->lastError().text()));
+    ToLog(LOGMSG_CRITICAL,QString("Error %1:%2").arg(Query->lastError().nativeErrorCode()).arg(Query->lastError().text()));
 }
 
 //**************************************************************************************************************************
@@ -80,7 +80,7 @@ bool cDatabase::ResetDB() {
     bool Ret=CloseDB();
     if (QFileInfo(dbPath).exists()) Ret=Ret && QFile::remove(dbPath);
     Ret=Ret && OpenDB();
-    if (db.isOpen()) foreach (cDatabaseTable *Table,Tables) Ret=Ret && Table->CreateTable();
+    if (db.isOpen()) {foreach (cDatabaseTable *Table,Tables) Ret=Ret && Table->CreateTable();}
     return db.isOpen();
 }
 
@@ -152,7 +152,7 @@ bool cDatabaseTable::ValidateTable() {
         if (!Ret) DisplayLastSQLError(&Query);
         return Ret;
     } else {
-        if (Query.lastError().number()==1) return CreateTable(); else {
+        if (Query.lastError().nativeErrorCode().toInt()==1) return CreateTable(); else {
             DisplayLastSQLError(&Query);
             return false;
         }
@@ -352,16 +352,7 @@ bool cFolderTable::DoUpgradeTableVersion(qlonglong OldVersion) {
 qlonglong cFolderTable::GetFolderKey(QString FolderPath) {
     if ((FolderPath==".")||(FolderPath=="..")) return -1;
     FolderPath=QDir::toNativeSeparators(QDir(FolderPath).absolutePath());
-    #ifdef Q_OS_WIN
-    // On windows, network share start with \\,  so keep this information in a boolean and remove this "\"
-    bool IsNetworkShare=FolderPath.startsWith("\\\\");
-    if (IsNetworkShare) FolderPath=FolderPath.mid(QString("\\\\").length());
-    #endif
     QStringList FolderList=FolderPath.split(QDir::separator());
-    #ifdef Q_OS_WIN
-    // On windows, add previously \\ removed before to create the list
-    if ((IsNetworkShare)&&(FolderList.count()>0)) FolderList[0]="\\\\"+FolderList[0];
-    #endif
     if (FolderList.last().isEmpty()) FolderList.removeLast();
     qlonglong Key=-1;
     QString   ParentPath;   if (FolderList.count()>1) for (int i=0;i<FolderList.count()-1;i++) ParentPath=ParentPath+FolderList[i]+QDir::separator();
@@ -490,8 +481,8 @@ qlonglong cFilesTable::GetFileKey(qlonglong FolderKey,QString ShortName,int Medi
                                   "BasicProperties=NULL,ExtendedProperties=NULL,Thumbnail16=NULL,Thumbnail100=NULL WHERE Key=:Key").arg(TableName));
             Query.bindValue(":Key",          FileKey,                                                   QSql::In);
             Query.bindValue(":Timestamp",    FileInfo.lastModified().toMSecsSinceEpoch(),               QSql::In);
-            Query.bindValue(":CreatDateTime",FileInfo.lastModified(),                                   QSql::In);
-            Query.bindValue(":ModifDateTime",FileInfo.created(),                                        QSql::In);
+            Query.bindValue(":CreatDateTime",FileInfo.lastModified(),                                      QSql::In);
+            Query.bindValue(":ModifDateTime",FileInfo.metadataChangeTime(),                                   QSql::In);
             Query.bindValue(":FileSize",     FileInfo.size(),                                           QSql::In);
             Query.bindValue(":MediaFileType",MediaFileType,                                             QSql::In);
             if (!Query.exec()) DisplayLastSQLError(&Query);
@@ -509,8 +500,8 @@ qlonglong cFilesTable::GetFileKey(qlonglong FolderKey,QString ShortName,int Medi
         Query.bindValue(":Timestamp",    FileInfo.lastModified().toMSecsSinceEpoch(),                   QSql::In);
         Query.bindValue(":IsHidden",     FileInfo.isHidden()||FileInfo.fileName().startsWith(".")?1:0,  QSql::In);
         Query.bindValue(":IsDir",        FileInfo.isDir()?1:0,                                          QSql::In);
-        Query.bindValue(":CreatDateTime",FileInfo.lastModified(),                                       QSql::In);
-        Query.bindValue(":ModifDateTime",FileInfo.created(),                                            QSql::In);
+        Query.bindValue(":CreatDateTime",FileInfo.lastModified(),                                          QSql::In);
+        Query.bindValue(":ModifDateTime",FileInfo.metadataChangeTime(),                                       QSql::In);
         Query.bindValue(":FileSize",     FileInfo.size(),                                               QSql::In);
         Query.bindValue(":MediaFileType",MediaFileType,                                                 QSql::In);
         Ret=Query.exec();
@@ -600,8 +591,8 @@ int cFilesTable::CleanTableForFolder(qlonglong FolderKey) {
                                             "CreatDateTime=:CreatDateTime,ModifDateTime=:ModifDateTime,FileSize=:FileSize WHERE Key=:Key").arg(TableName)));
                     Query2.bindValue(":Key",          FileKey,                                      QSql::In);
                     Query2.bindValue(":Timestamp",    NewTimestamp,                                 QSql::In);
-                    Query2.bindValue(":CreatDateTime",FileInfo.lastModified().toString(Qt::ISODate),QSql::In);
-                    Query2.bindValue(":ModifDateTime",FileInfo.created().toString(Qt::ISODate),     QSql::In);
+                    Query2.bindValue(":CreatDateTime",FileInfo.lastModified().toString(Qt::ISODate),   QSql::In);
+                    Query2.bindValue(":ModifDateTime",FileInfo.metadataChangeTime().toString(Qt::ISODate),QSql::In);
                     Query2.bindValue(":FileSize",     FileInfo.size(),                              QSql::In);
                     if (!Query2.exec()) DisplayLastSQLError(&Query2);
                     NbrModif++;
@@ -1025,98 +1016,4 @@ bool cSlideThumbsTable::RemoveThumbs(qlonglong ThumbnailKey) {
         return false;
     }
     return true;
-}
-
-//**********************************************************************************************
-// cFolderTable : encapsulate folders in the table
-//**********************************************************************************************
-
-cLocationTable::cLocationTable(cDatabase *Database):cDatabaseTable(Database) {
-    TypeTable       =TypeTable_LocationTable;
-    TableName       ="Location";
-    IndexKeyName    ="Key";
-    CreateTableQuery="create table Location ("\
-                            "Key                bigint primary key,"\
-                            "Name               text,"\
-                            "Address            text,"\
-                            "Latitude           real,"\
-                            "Longitude          real,"\
-                            "Zoomlevel          int,"\
-                            "Icon               text,"\
-                            "Thumbnail          binary,"\
-                            "FAddress           text"
-                     ")";
-    CreateIndexQuery.append("CREATE INDEX idx_Location_Key ON Location (Key)");
-}
-
-//=====================================================================================================
-
-bool cLocationTable::DoUpgradeTableVersion(qlonglong OldVersion) {
-    QSqlQuery Query(Database->db);
-    bool Ret=true;
-
-    if (OldVersion<=4) {
-        Ret=Query.exec("DROP TABLE Location");
-        if ((!Ret)&&(Query.lastError().number()==1)) Ret=true;
-    } else if (OldVersion==5) {
-        Ret=Query.exec("ALTER TABLE Location ADD COLUMN FAddress text");
-        if ((!Ret)&&(Query.lastError().number()==1)) Ret=true;
-    }
-
-    if (!Ret) DisplayLastSQLError(&Query);
-    return Ret;
-}
-
-//=====================================================================================================
-
-qlonglong cLocationTable::AppendLocation(QString Name,QString Address,QString FAddress,double Latitude,double Longitude,int Zoomlevel,QString Icon,QImage Thumbnail) {
-    QSqlQuery Query(Database->db);
-    Query.prepare(QString("INSERT INTO %1 (Key,Name,Address,FAddress,Latitude,Longitude,Zoomlevel,Icon,Thumbnail) VALUES (:Key,:Name,:Address,:FAddress,:Latitude,:Longitude,:Zoomlevel,:Icon,:Thumbnail)").arg(TableName));
-    Query.bindValue(":Key",         ++NextIndex,QSql::In);
-    Query.bindValue(":Name",        Name,QSql::In);
-    Query.bindValue(":Address",     Address,QSql::In);
-    Query.bindValue(":FAddress",    FAddress,QSql::In);
-    Query.bindValue(":Latitude",    Latitude,QSql::In);
-    Query.bindValue(":Longitude",   Longitude,QSql::In);
-    Query.bindValue(":Zoomlevel",   Zoomlevel,QSql::In);
-    Query.bindValue(":Icon",        Icon,QSql::In);
-
-    QByteArray  Data;
-    QBuffer     BufData(&Data);
-    BufData.open(QIODevice::WriteOnly);
-    Thumbnail.save(&BufData,"PNG");
-
-    Query.bindValue(":Thumbnail",   Data,QSql::In);
-    bool Ret=Query.exec();
-    if (!Ret) {
-        DisplayLastSQLError(&Query);
-        return -1;
-    } else return NextIndex;
-}
-
-//=====================================================================================================
-
-qlonglong cLocationTable::UpdateLocation(qlonglong Key,QString Name,QString Address,QString FAddress,double Latitude,double Longitude,int Zoomlevel,QString Icon,QImage Thumbnail) {
-    QSqlQuery Query(Database->db);
-    Query.prepare(QString("UPDATE %1 SET Name=:Name,Address=:Address,FAddress=:FAddress,Latitude=:Latitude,Longitude=:Longitude,Zoomlevel=:Zoomlevel,Icon=:Icon,Thumbnail=:Thumbnail WHERE Key=:Key").arg(TableName));
-    Query.bindValue(":Key",         Key,QSql::In);
-    Query.bindValue(":Name",        Name,QSql::In);
-    Query.bindValue(":Address",     Address,QSql::In);
-    Query.bindValue(":FAddress",    FAddress,QSql::In);
-    Query.bindValue(":Latitude",    Latitude,QSql::In);
-    Query.bindValue(":Longitude",   Longitude,QSql::In);
-    Query.bindValue(":Zoomlevel",   Zoomlevel,QSql::In);
-    Query.bindValue(":Icon",        Icon,QSql::In);
-
-    QByteArray  Data;
-    QBuffer     BufData(&Data);
-    BufData.open(QIODevice::WriteOnly);
-    Thumbnail.save(&BufData,"PNG");
-
-    Query.bindValue(":Thumbnail",   Data,QSql::In);
-    bool Ret=Query.exec();
-    if (!Ret) {
-        DisplayLastSQLError(&Query);
-        return -1;
-    } else return NextIndex;
 }

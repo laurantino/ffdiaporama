@@ -20,8 +20,6 @@
 
 #include "DlgChapter.h"
 #include "ui_DlgChapter.h"
-#include "engine/cLocation.h"
-#include "DlgGMapsLocation/DlgGMapsLocation.h"
 
 DlgChapter::DlgChapter(cDiaporamaObject *DiaporamaObject,cApplicationConfig *ApplicationConfig,QWidget *parent):
     QCustomDialog(ApplicationConfig,parent),ui(new Ui::DlgChapter) {
@@ -32,7 +30,6 @@ DlgChapter::DlgChapter(cDiaporamaObject *DiaporamaObject,cApplicationConfig *App
     HelpBt      =ui->HelpBt;
     HelpFile    ="0105";
     CurrentSlide=DiaporamaObject;
-    IsLocationChanged=false;
 }
 
 //====================================================================================================================
@@ -45,9 +42,6 @@ DlgChapter::~DlgChapter() {
 // Initialise dialog
 
 void DlgChapter::DoInitDialog() {
-    ui->LocationFrame->setAutoFillBackground(true);
-    ui->OverrideProjectLocationCB->setChecked(CurrentSlide->ChapterLocation!=NULL);
-
     ui->ChapterEventDateED->setDisplayFormat(ApplicationConfig->ShortDateFormat);
     ui->ChapterNameED->setText(CurrentSlide->ChapterName);
     ui->ChapterEventDateED->setDate(CurrentSlide->OverrideProjectEventDate?CurrentSlide->ChapterEventDate:CurrentSlide->Parent->ProjectInfo->EventDate);
@@ -59,9 +53,6 @@ void DlgChapter::DoInitDialog() {
     connect(ui->OverrideProjectDateCB,    SIGNAL(stateChanged(int)),this,SLOT(OverrideProjectDateChanged(int)));
     connect(ui->OverrideDateCB,           SIGNAL(stateChanged(int)),this,SLOT(OverrideDateCBChanged(int)));
     connect(ui->ChapterEventDateED,       SIGNAL(dateChanged(const QDate &)),this,SLOT(ChapterEventDateChanged(const QDate &)));
-    connect(ui->LocationBT,               SIGNAL(pressed()),this,SLOT(SelectLocation()));
-    connect(ui->ClearLocationBT,          SIGNAL(pressed()),this,SLOT(ClearLocation()));
-    connect(ui->OverrideProjectLocationCB,SIGNAL(stateChanged(int)),this,SLOT(OverrideLocationCBChanged(int)));
 }
 
 //====================================================================================================================
@@ -82,22 +73,6 @@ void DlgChapter::RefreshControl() {
     ui->OverrideDateCB->setEnabled(CurrentSlide->StartNewChapter && CurrentSlide->OverrideProjectEventDate);
     ui->OverrideDateLabel->setEnabled(CurrentSlide->StartNewChapter && CurrentSlide->OverrideProjectEventDate);
     ui->ChapterDateED->setEnabled(CurrentSlide->StartNewChapter && CurrentSlide->OverrideProjectEventDate && CurrentSlide->OverrideChapterLongDate);
-
-    ui->OverrideProjectLocationCB->setEnabled(CurrentSlide->StartNewChapter);
-    ui->LocationLabel->setEnabled(CurrentSlide->StartNewChapter && ui->OverrideProjectLocationCB->isChecked());
-    ui->LocationFrame->setEnabled(CurrentSlide->StartNewChapter && ui->OverrideProjectLocationCB->isChecked());
-    ui->LocationBT->setEnabled(CurrentSlide->StartNewChapter && ui->OverrideProjectLocationCB->isChecked());
-    ui->ClearLocationBT->setEnabled(CurrentSlide->StartNewChapter && ui->OverrideProjectLocationCB->isChecked());
-
-    if (CurrentSlide->ChapterLocation) {
-        ui->Location->setText(QString("%1 (%2)").arg(((cLocation *)CurrentSlide->ChapterLocation)->Name).arg(((cLocation *)CurrentSlide->ChapterLocation)->FriendlyAddress));
-        ui->LocationIcon->setPixmap(QPixmap().fromImage(((cLocation *)CurrentSlide->ChapterLocation)->GetThumb(16)));
-    } else {
-        ui->Location->setText("");
-        ui->LocationIcon->setPixmap(QPixmap());
-    }
-    if (ui->LocationFrame->isEnabled()) ui->LocationFrame->setStyleSheet("QFrame {background-color: white;border: 1px solid darkgray;}");
-        else ui->LocationFrame->setStyleSheet("QFrame {border: 1px solid darkgray;}");
 }
 
 //====================================================================================================================
@@ -130,8 +105,6 @@ bool DlgChapter::DoAccept() {
     CurrentSlide->ChapterName               =ui->ChapterNameED->text();
     CurrentSlide->ChapterEventDate          =CurrentSlide->OverrideProjectEventDate?ui->ChapterEventDateED->date():CurrentSlide->Parent->ProjectInfo->EventDate;
     CurrentSlide->ChapterLongDate           =CurrentSlide->OverrideProjectEventDate?CurrentSlide->OverrideChapterLongDate?ui->ChapterDateED->toPlainText():FormatLongDate(CurrentSlide->ChapterEventDate):CurrentSlide->Parent->ProjectInfo->LongDate;
-
-    if (IsLocationChanged) CurrentSlide->Parent->UpdateGMapsObject();
 
     return true;
 }
@@ -180,85 +153,3 @@ void DlgChapter::ChapterEventDateChanged(const QDate &NewDate) {
 #define FAVACTIONTYPE_ACTIONTYPE    0xF000
 #define FAVACTIONTYPE_EDIT          0x1000
 #define FAVACTIONTYPE_SELECT        0x8000
-
-void DlgChapter::SelectLocation() {
-    QMenu       *ContextMenu=new QMenu(this);
-    bool        AddSep=false;
-
-    QAction     *Add=CreateMenuAction(QIcon(":/img/gmap_add.png"),
-                                      CurrentSlide->ChapterLocation?QApplication::translate("MainWindow","Edit this location"):QApplication::translate("MainWindow","Define a location"),
-                                      FAVACTIONTYPE_EDIT,false,false,this);
-    ContextMenu->addAction(Add);
-
-    QSqlQuery   Query(ApplicationConfig->Database->db);
-    QString     QueryString("SELECT Key,Name,FAddress,Thumbnail FROM Location ORDER BY LOWER(Name)");
-    Query.prepare(QueryString);
-    if (!Query.exec()) DisplayLastSQLError(&Query); else while (Query.next()) {
-        bool      Ret;
-        qlonglong Key=Query.value(0).toLongLong(&Ret);
-        if (Ret) {
-            if (!AddSep) {
-                ContextMenu->addSeparator();
-                AddSep=true;
-            }
-            QString     Name   =Query.value(1).toString();
-            QString     Address=Query.value(2).toString();
-            QByteArray  Data   =Query.value(3).toByteArray();
-            QImage      Thumb; Thumb.loadFromData(Data);
-            bool        IsCurrent=(Key==(CurrentSlide->ChapterLocation?((cLocation *)CurrentSlide->ChapterLocation)->FavKey:-1));
-            QAction *Act=CreateMenuAction(QIcon(QPixmap().fromImage(Thumb)),QString("%1 (%2)").arg(Name).arg(Address),FAVACTIONTYPE_SELECT+Key,true,IsCurrent,this);
-            ContextMenu->addAction(Act);
-        }
-    }
-
-    QAction *Action=ContextMenu->exec(QCursor::pos());
-    if (Action) {
-        int ActionType=Action->data().toInt() & FAVACTIONTYPE_ACTIONTYPE;
-        if (ActionType==FAVACTIONTYPE_EDIT) {
-            cLocation *PrevLocation=(cLocation *)CurrentSlide->ChapterLocation;
-            if (!((cLocation *)CurrentSlide->ChapterLocation)) CurrentSlide->ChapterLocation=new cLocation(ApplicationConfig);
-            DlgGMapsLocation Dlg((cLocation *)CurrentSlide->ChapterLocation,ApplicationConfig,this);
-            Dlg.InitDialog();
-            if ((Dlg.exec()!=0)&&(!PrevLocation)) {
-                delete (cLocation *)CurrentSlide->ChapterLocation;
-                CurrentSlide->ChapterLocation=NULL;
-            }
-        } else if (Action->text()!="") {
-            qlonglong Key=Action->data().toInt() & ~FAVACTIONTYPE_ACTIONTYPE;
-            if (!CurrentSlide->ChapterLocation) CurrentSlide->ChapterLocation=new cLocation(ApplicationConfig);
-            ((cLocation *)CurrentSlide->ChapterLocation)->LoadFromFavorite(Key);
-        }
-    }
-    ui->LocationBT->setDown(false);
-    if (CurrentSlide->ChapterLocation) {
-        ui->Location->setText(QString("%1 (%2)").arg(((cLocation *)CurrentSlide->ChapterLocation)->Name).arg(((cLocation *)CurrentSlide->ChapterLocation)->FriendlyAddress));
-        ui->LocationIcon->setPixmap(QPixmap().fromImage(((cLocation *)CurrentSlide->ChapterLocation)->GetThumb(16)));
-    } else {
-        ui->Location->setText("");
-        ui->LocationIcon->setPixmap(QPixmap());
-    }
-    IsLocationChanged=true;
-}
-
-//====================================================================================================================
-
-void DlgChapter::ClearLocation() {
-    if (CurrentSlide->ChapterLocation) delete ((cLocation *)CurrentSlide->ChapterLocation);
-    CurrentSlide->ChapterLocation=NULL;
-    ui->Location->setText("");
-    ui->LocationIcon->setPixmap(QPixmap());
-    IsLocationChanged=true;
-}
-
-//====================================================================================================================
-
-void DlgChapter::OverrideLocationCBChanged(int) {
-    if ((!ui->OverrideProjectLocationCB->isChecked())&&(CurrentSlide->ChapterLocation)) {
-        delete ((cLocation *)CurrentSlide->ChapterLocation);
-        CurrentSlide->ChapterLocation=NULL;
-        ui->Location->setText("");
-        ui->LocationIcon->setPixmap(QPixmap());
-    }
-    RefreshControl();
-    IsLocationChanged=true;
-}

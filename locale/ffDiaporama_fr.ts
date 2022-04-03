@@ -1970,12 +1970,12 @@ Jaune : Le composant fonctionne partiellement
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="76"/>
         <source>qimageblitz version:0.6.6-Licence=LGPL</source>
-        <translation>qimageblitz version:0.6.6-Licence=LGPL</translation>
+        <translation>qimageblitz version : 0.6.6-Licence=LGPL</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="79"/>
         <source>QT version: %1</source>
-        <translation>QT version : %1</translation>
+        <translation>Version de QT : %1</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="80"/>
@@ -1990,7 +1990,7 @@ Jaune : Le composant fonctionne partiellement
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="85"/>
         <source>LibExiv2 version:</source>
-        <translation>LibExiv2 version : </translation>
+        <translation>Version de LibExiv2 :</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="87"/>
@@ -2010,64 +2010,44 @@ Jaune : Le composant fonctionne partiellement
         <translation>LibExiv2 support de la prévisualisation des images</translation>
     </message>
     <message>
-        <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="94"/>
-        <source>TAGLib version:</source>
-        <translation>TAGLib version : </translation>
-    </message>
-    <message>
-        <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="100"/>
-        <source>TAGLib support for FLAC</source>
-        <translation>TAGLib support des fichiers FLAC</translation>
-    </message>
-    <message>
-        <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="107"/>
-        <source>TAGLib support for ASF/WMA</source>
-        <translation>TAGLib support des fichiers ASF/WMA</translation>
-    </message>
-    <message>
-        <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="114"/>
-        <source>TAGLib support for M4A/MP4</source>
-        <translation>TAGLib support des fichiers M4A/MP4</translation>
-    </message>
-    <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="121"/>
-        <source>LIBAV general version:</source>
-        <translation>Version générale de libav:</translation>
+        <source>FFMPEG version: %1</source>
+        <translation>Version de FFMPEG : %1</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="128"/>
         <source>LIBAVUTIL version: %1.%2.%3.%4</source>
-        <translation>LIBAVUTIL version: %1.%2.%3.%4</translation>
+        <translation>LIBAVUTIL version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="129"/>
         <source>LIBAVCODEC version: %1.%2.%3.%4</source>
-        <translation>LIBAVCODEC version: %1.%2.%3.%4</translation>
+        <translation>LIBAVCODEC version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="130"/>
         <source>LIBAVFORMAT version: %1.%2.%3.%4</source>
-        <translation>LIBAVFORMAT version: %1.%2.%3.%4</translation>
+        <translation>LIBAVFORMAT version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="131"/>
         <source>LIBAVFILTER version: %1.%2.%3.%4</source>
-        <translation>LIBAVFILTER version: %1.%2.%3.%4</translation>
+        <translation>LIBAVFILTER version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="132"/>
         <source>LIBSWSCALE version: %1.%2.%3.%4</source>
-        <translation>LIBSWSCALE version: %1.%2.%3.%4</translation>
+        <translation>LIBSWSCALE version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="134"/>
         <source>LIBAVRESAMPLE version: %1.%2.%3.%4</source>
-        <translation>LIBAVRESAMPLE version: %1.%2.%3.%4</translation>
+        <translation>LIBAVRESAMPLE version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="136"/>
         <source>LIBSWRESAMPLE version: %1.%2.%3.%4</source>
-        <translation>LIBSWRESAMPLE version: %1.%2.%3.%4</translation>
+        <translation>LIBSWRESAMPLE version : %1.%2.%3.%4</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="145"/>
@@ -2082,7 +2062,7 @@ Jaune : Le composant fonctionne partiellement
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="153"/>
         <source>Container Formats</source>
-        <translation>Formats container</translation>
+        <translation>Formats conteneurs</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="139"/>
@@ -8414,8 +8394,8 @@ Voulez-vous l&apos;enregistrer ?</translation>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="188"/>
         <location filename="../src/ffDiaporama/engine/cDeviceModelDef.cpp" line="728"/>
-        <source>Starting libav...</source>
-        <translation>Démarrage de LIBAV ...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>Démarrage de ffmpeg...</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="280"/>

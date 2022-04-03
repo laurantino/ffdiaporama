@@ -29,12 +29,6 @@
 
 #include <errno.h>
 
-#ifdef Q_OS_WIN
-    #include <windows.h>
-    #include <QSettings>
-    #include <QPixmapCache>
-#endif
-
 #define TAG "<to expand>"
 
 //====================================================================================================================
@@ -55,15 +49,13 @@ QCustomFolderTree::QCustomFolderTree(QWidget *parent):QTreeWidget(parent) {
 
 void QCustomFolderTree::InitDrives() {
     foreach(cDriveDesc HDD,ApplicationConfig->DriveList->List)
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        if (HDD.Path.startsWith("/media/")
-            ||(HDD.Path=="/")
-            ||(HDD.Label==PersonalFolder)
-            ||(HDD.Label==QApplication::translate("QCustomFolderTree","Clipart"))
-            ||(HDD.Path.startsWith("/mnt/")&&FolderTable->ShowMntDrive)
-        )
-    #endif
-            addTopLevelItem(CreateItem(HDD.Label,HDD.Path,QIcon(QPixmap().fromImage(HDD.IconDrive))));
+    if (HDD.Path.startsWith("/media/")
+        ||(HDD.Path=="/")
+        ||(HDD.Label==PersonalFolder)
+        ||(HDD.Label==QApplication::translate("QCustomFolderTree","Clipart"))
+        ||(HDD.Path.startsWith("/mnt/")&&FolderTable->ShowMntDrive)
+    )
+    addTopLevelItem(CreateItem(HDD.Label,HDD.Path,QIcon(QPixmap().fromImage(HDD.IconDrive))));
 }
 
 //====================================================================================================================
@@ -100,12 +92,7 @@ void QCustomFolderTree::s_ContextMenu(const QPoint) {
                 SubFolderName=CustomInputDialog(this,QApplication::translate("QCustomFolderTree","Create folder"),QApplication::translate("QCustomFolderTree","Folder:"),QLineEdit::Normal,"",&Ok);
                 if (Ok && !SubFolderName.isEmpty()) {
                     if (!FolderPath.endsWith(QDir::separator())) FolderName=FolderPath+QDir::separator()+SubFolderName; else FolderName=FolderPath+SubFolderName;
-                    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
                     if (FolderName.startsWith("~")) FolderName=QDir::homePath()+FolderName.mid(1);
-                    #else
-                        if (FolderName.startsWith(PersonalFolder)) FolderName=QDir::homePath()+FolderName.mid(PersonalFolder.length());
-                        FolderName=QDir::toNativeSeparators(FolderName);
-                    #endif
                     if (QDir().mkdir(FolderName)) RefreshItemByPath(GetFolderPath(currentItem(),true),false); else {
                         QString ErrorMsg=QString(QApplication::translate("QCustomFolderTree","Error %1:")).arg(errno)+QString().fromLocal8Bit(strerror(errno));
                         CustomMessageBox(this,QMessageBox::Critical,QApplication::translate("QCustomFolderTree","Create folder"),
@@ -129,12 +116,7 @@ void QCustomFolderTree::s_ContextMenu(const QPoint) {
 
 bool QCustomFolderTree::IsFolderHaveChild(QString FilePath) {
     if (FilePath.startsWith(QApplication::translate("QCustomFolderTree","Clipart"))) FilePath=ClipArtFolder+FilePath.mid(QApplication::translate("QCustomFolderTree","Clipart").length());
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     if (FilePath.startsWith("~")) FilePath=QDir::homePath()+FilePath.mid(1);
-    #else
-        if (FilePath.startsWith(PersonalFolder)) FilePath=QDir::homePath()+FilePath.mid(PersonalFolder.length());
-        FilePath=QDir::toNativeSeparators(FilePath);
-    #endif
     QFileInfoList List=QDir(FilePath).entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot|(FolderTable->ShowHiddenFilesAndDir?QDir::Hidden:QDir::Dirs));
     int i=0; while (i<List.count()) if ((FolderTable->ShowHiddenFilesAndDir)||(!List[i].fileName().startsWith("."))) i++; else List.removeAt(i);
     return List.count()>0;
@@ -190,12 +172,15 @@ QString QCustomFolderTree::GetFolderPath(const QTreeWidgetItem *Item,bool TreeMo
             if (Item->text(0).indexOf("[")!=-1) RootStr=Item->text(0).left(Item->text(0).indexOf("["));
             if (!TreeMode) {
                 // Search if text is a registered alias, then replace text with path
-                for (int i=0;i<ApplicationConfig->DriveList->List.count();i++) if (ApplicationConfig->DriveList->List[i].Label==RootStr) {
-                    if ((RootStr!=PersonalFolder)&&(RootStr!=QApplication::translate("QCustomFolderTree","Clipart"))) RootStr=ApplicationConfig->DriveList->List[i].Path;
-                        #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-                        else if (RootStr==PersonalFolder) RootStr="~";
-                        #endif
-                        else if (RootStr==QApplication::translate("QCustomFolderTree","Clipart")) RootStr=QApplication::translate("QCustomFolderTree","Clipart");
+                for (int i=0;i<ApplicationConfig->DriveList->List.count();i++) {
+                    if (ApplicationConfig->DriveList->List[i].Label==RootStr) {
+                        if ((RootStr!=PersonalFolder)&&(RootStr!=QApplication::translate("QCustomFolderTree","Clipart")))
+                            RootStr=ApplicationConfig->DriveList->List[i].Path;
+                        else if (RootStr==PersonalFolder)
+                            RootStr="~";
+                        else if (RootStr==QApplication::translate("QCustomFolderTree","Clipart"))
+                            RootStr=QApplication::translate("QCustomFolderTree","Clipart");
+                    }
                 }
             }
             if (!RootStr.endsWith(QDir::separator())) RootStr=RootStr+QDir::separator();
@@ -235,32 +220,17 @@ void QCustomFolderTree::s_itemExpanded(QTreeWidgetItem *item) {
         int                 i,k;
 
         if (Folder.startsWith(QApplication::translate("QCustomFolderTree","Clipart"))) Folder=ClipArtFolder+Folder.mid(QApplication::translate("QCustomFolderTree","Clipart").length());
-        #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-            if (Folder.startsWith("~")) Folder=QDir::homePath()+Folder.mid(1);
-        #else
-            if (Folder.startsWith(PersonalFolder)) Folder=QDir::homePath()+Folder.mid(PersonalFolder.length());
-            Folder=QDir::toNativeSeparators(Folder);
-        #endif
-
+        if (Folder.startsWith("~")) Folder=QDir::homePath()+Folder.mid(1);
+        
         // remove tag to sub item
         QTreeWidgetItem *SubItem=CurItem->child(0);
         CurItem->removeChild(SubItem);
         delete SubItem;
 
-        #ifdef Q_OS_WIN
-            bool IsPersonalFolder=Folder.startsWith(PersonalFolder);
-            if (IsPersonalFolder) Folder=QDir::homePath()+Folder.mid(PersonalFolder.length());
-            Folder=QDir::toNativeSeparators(Folder);
-        #endif
         Directorys=QDir(Folder).entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot|(FolderTable->ShowHiddenFilesAndDir?QDir::Hidden:QDir::Dirs));
         i=0; while (i<Directorys.count()) if ((FolderTable->ShowHiddenFilesAndDir)||(!Directorys[i].fileName().startsWith("."))) i++; else Directorys.removeAt(i);
         for (k=0;k<Directorys.count();k++)
             if (Directorys[k].isDir()) {
-                #ifdef Q_OS_WIN
-                if (IsPersonalFolder)
-                    CurItem->addChild(CreateItem(Directorys[k].fileName(),PersonalFolder+QDir::separator()+Directorys[k].fileName(),ApplicationConfig->DriveList->GetFolderIcon(Directorys[k].absoluteFilePath())));
-                else
-                #endif
                 CurItem->addChild(CreateItem(Directorys[k].fileName(),Directorys[k].absoluteFilePath(),ApplicationConfig->DriveList->GetFolderIcon(Directorys[k].absoluteFilePath())));
             }
 
@@ -283,13 +253,7 @@ void QCustomFolderTree::s_itemExpanded(QTreeWidgetItem *item) {
 //====================================================================================================================
 
 cDriveDesc *QCustomFolderTree::SearchRealDrive(QString Path) {
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        if (Path.startsWith("~")) Path=QDir::homePath()+Path.mid(1);
-    #else
-        if (Path.startsWith(PersonalFolder)) Path=QDir::homePath()+Path.mid(PersonalFolder.length());
-        Path=QDir::toNativeSeparators(Path);
-    #endif
-
+    if (Path.startsWith("~")) Path=QDir::homePath()+Path.mid(1);
     if (Path.endsWith(QDir::separator()))  Path=Path=Path.left(Path.length()-1);    // Remove endest separator
     if (QDir(Path).canonicalPath()!="")    Path=QDir(Path).canonicalPath();         // Convert path to physical path
     Path=QDir::toNativeSeparators(Path);
@@ -314,14 +278,6 @@ QString QCustomFolderTree::RealPathToTreePath(QString Path) {
     return Path;
 }
 
-//====================================================================================================================
-QString RemoveLabel(QString Path) {
-    #ifdef Q_OS_WIN
-        if (Path.indexOf("[")>0) Path=Path.left(Path.indexOf("["));
-    #endif
-    return Path;
-}
-
 void QCustomFolderTree::SetSelectItemByPath(QString Path) {
     QApplication::setOverrideCursor(QCursor(Qt::WaitCursor));
     setUpdatesEnabled(false);
@@ -333,20 +289,8 @@ void QCustomFolderTree::SetSelectItemByPath(QString Path) {
     QTreeWidgetItem     *Current=NULL;
 
     //if (Path.startsWith(QApplication::translate("QCustomFolderTree","Clipart"))) Path=ClipArtFolder+Path.mid(QApplication::translate("QCustomFolderTree","Clipart").length());
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        if (Path.startsWith("~")) Path=PersonalFolder+Path.mid(1);
-    #else
-        Path=QDir::toNativeSeparators(Path);
-        // Remove labels
-        int StartLabel=Path.indexOf("[");
-        int EndLabel  =(StartLabel>0?Path.indexOf("]\\"):0);
-        if (EndLabel>0) EndLabel+=2;
-        if ((StartLabel>0)&&(EndLabel>StartLabel)) {
-            QString OldPath=Path;
-            Path=OldPath.left(StartLabel)+OldPath.right(OldPath.length()-EndLabel);
-        }
-    #endif
-
+    if (Path.startsWith("~")) Path=PersonalFolder+Path.mid(1);
+    
     // Create a list with each part of the wanted Path
     while (Path.contains(QDir::separator())) {
         Folders.append(Path.mid(0,Path.indexOf(QDir::separator())));
@@ -354,10 +298,8 @@ void QCustomFolderTree::SetSelectItemByPath(QString Path) {
     }
     Folders.append(Path);
 
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     if ((Folders.count()>=1)&&(Folders[0]=="")) Folders[0]=QApplication::translate("QCustomFolderTree","System files");
-    #endif
-
+    
     // find node in the tree and expand it if it was not previously expanded
     i=0;
     Current=topLevelItem(0);
@@ -366,8 +308,8 @@ void QCustomFolderTree::SetSelectItemByPath(QString Path) {
         if (i==0) {
             // Search in topitemlist : Note : Search in reverse order to give preference to drive instead of /mnt/drive or /media/drive
             j=topLevelItemCount()-1;
-            while ((j>=0)&&(RemoveLabel(topLevelItem(j)->text(0))!=Folders[i])&&(RemoveLabel(topLevelItem(j)->text(0))!=Folders[i]+QDir::separator())) j--;
-            if ((j>=0)&&((RemoveLabel(topLevelItem(j)->text(0))==Folders[i])||(RemoveLabel(topLevelItem(j)->text(0))==Folders[i]+QDir::separator())))
+            while ((j>=0)&&(topLevelItem(j)->text(0)!=Folders[i])&&(topLevelItem(j)->text(0)!=Folders[i]+QDir::separator())) j--;
+            if ((j>=0)&&((topLevelItem(j)->text(0)==Folders[i])||(topLevelItem(j)->text(0)==Folders[i]+QDir::separator())))
                 Current=topLevelItem(j); else Current=NULL;
         } else {
             j=0;
@@ -386,12 +328,7 @@ void QCustomFolderTree::SetSelectItemByPath(QString Path) {
                 delete SubItem;
                 QString RealPath=CurrentFolder;
                 if (RealPath.startsWith(QApplication::translate("QCustomFolderTree","Clipart"))) RealPath=ClipArtFolder+RealPath.mid(QApplication::translate("QCustomFolderTree","Clipart").length());
-                #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
                 if (RealPath.startsWith("~")) RealPath=QDir::homePath()+RealPath.mid(1);
-                #else
-                if (RealPath.startsWith(PersonalFolder)) RealPath=QDir::homePath()+RealPath.mid(PersonalFolder.length());
-                RealPath=QDir::toNativeSeparators(RealPath);
-                #endif
                 Directorys=QDir(RealPath).entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot|(FolderTable->ShowHiddenFilesAndDir?QDir::Hidden:QDir::Dirs));
                 int z=0; while (z<Directorys.count()) if ((FolderTable->ShowHiddenFilesAndDir)||(!Directorys[z].fileName().startsWith("."))) z++; else Directorys.removeAt(z);
                 for (k=0;k<Directorys.count();k++) Current->addChild(CreateItem(Directorys[k].fileName(),Directorys[k].absoluteFilePath(),ApplicationConfig->DriveList->GetFolderIcon(Directorys[k].absoluteFilePath())));
@@ -427,13 +364,6 @@ public:
     }
 };
 
-#ifdef Q_OS_WIN
-QString CleanTextPath(QString Source) {
-    if (Source.contains("[")) Source=Source.left(Source.indexOf("["));
-    return Source;
-}
-#endif
-
 void QCustomFolderTree::RefreshItemByPath(QString Path,bool RefreshAll,int Level) {
     Path=QDir::toNativeSeparators(Path);
     QString RealPath=Path;
@@ -459,9 +389,7 @@ void QCustomFolderTree::RefreshItemByPath(QString Path,bool RefreshAll,int Level
     QTreeWidgetItem     *SubItem=NULL;
 
     // Adjust Path
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
     Path.replace("~",PersonalFolder);
-    #endif
     if (Path.startsWith(QApplication::translate("QCustomFolderTree","Clipart"))) Path=ClipArtFolder+Path.mid(QApplication::translate("QCustomFolderTree","Clipart").length());
 
     // Create a list with each part of the wanted Path
@@ -473,13 +401,8 @@ void QCustomFolderTree::RefreshItemByPath(QString Path,bool RefreshAll,int Level
 
     // Now we can search corresponding item in the tree
     i=0;
-    #ifdef Q_OS_WIN
-    while ((Folders.count()>0)&&(i<this->topLevelItemCount())&&(CleanTextPath(topLevelItem(i)->text(0))!=Folders[0])&&(CleanTextPath(topLevelItem(i)->text(0))!=Folders[0]+QDir::separator())) i++;
-    if ((Folders.count()>0)&&(i<this->topLevelItemCount())&&((CleanTextPath(topLevelItem(i)->text(0))==Folders[0])||(CleanTextPath(topLevelItem(i)->text(0))==Folders[0]+QDir::separator()))) {
-    #else
     while ((Folders.count()>0)&&(i<this->topLevelItemCount())&&(topLevelItem(i)->text(0)!=Folders[0])&&(topLevelItem(i)->text(0)!=Folders[0]+QDir::separator())) i++;
     if ((Folders.count()>0)&&(i<this->topLevelItemCount())&&((topLevelItem(i)->text(0)==Folders[0])||(topLevelItem(i)->text(0)==Folders[0]+QDir::separator()))) {
-    #endif
         // We have found the toplevel, now down the tree
         Current=topLevelItem(i);
         j=1;
@@ -609,14 +532,12 @@ void QCustomFolderTree::RefreshDriveList() {
             ApplicationConfig->DriveList->List.removeAt(i);                    // Delete from drive list
         } else if (ApplicationConfig->DriveList->List[i].Flag==1) {
             // Drive previously exist
-            #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
             if (ApplicationConfig->DriveList->List[i].Path.startsWith("/media/")
                 ||(ApplicationConfig->DriveList->List[i].Path=="/")
                 ||(ApplicationConfig->DriveList->List[i].Label==PersonalFolder)
                 ||(ApplicationConfig->DriveList->List[i].Label==QApplication::translate("QCustomFolderTree","Clipart"))
                 ||(ApplicationConfig->DriveList->List[i].Path.startsWith("/mnt/"))
             ) {
-            #endif
                 int j=0;
                 while ((j<topLevelItemCount())&&(topLevelItem(j)->text(0)!=ApplicationConfig->DriveList->List[i].Label)) j++;
                 if ((j<topLevelItemCount())&&(topLevelItem(j)->text(0)==ApplicationConfig->DriveList->List[i].Label)) {
@@ -633,9 +554,7 @@ void QCustomFolderTree::RefreshDriveList() {
                     if ((!ApplicationConfig->DriveList->List[i].Path.startsWith("/mnt/"))||(FolderTable->ShowMntDrive))
                         addTopLevelItem(CreateItem(ApplicationConfig->DriveList->List[i].Label,ApplicationConfig->DriveList->List[i].Path,QIcon(QPixmap().fromImage(ApplicationConfig->DriveList->List[i].IconDrive))));
                 }
-            #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
             }
-            #endif
             i++;
         } else {
             // It's a new drive

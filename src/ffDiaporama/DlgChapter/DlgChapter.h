@@ -33,7 +33,6 @@ class DlgChapter : public QCustomDialog {
 Q_OBJECT
 public:
     cDiaporamaObject    *CurrentSlide;              // Current slide
-    bool                IsLocationChanged;
 
     explicit DlgChapter(cDiaporamaObject *DiaporamaObject,cApplicationConfig *ApplicationConfig,QWidget *parent = 0);
     ~DlgChapter();
@@ -52,9 +51,6 @@ private slots:
     void                OverrideProjectDateChanged(int);
     void                OverrideDateCBChanged(int);
     void                ChapterEventDateChanged(const QDate &NewDate);
-    void                SelectLocation();
-    void                ClearLocation();
-    void                OverrideLocationCBChanged(int);
 
 private:
     Ui::DlgChapter *ui;

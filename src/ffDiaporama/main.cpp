@@ -18,7 +18,7 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
    ====================================================================== */
 
-// Somethings needed by libav
+// Somethings needed by ffmpeg
 #ifdef _STDINT_H
     #undef _STDINT_H            // Remove previous inclusion (if exist)
 #endif
@@ -59,17 +59,13 @@ bool CheckFolder(QString FileToTest,QString PathToTest) {
 bool SetWorkingPath(char * const argv[],QString ApplicationName) {
     QString StartupDir=QFileInfo(argv[0]).absolutePath();
     ToLog(LOGMSG_INFORMATION,"StartupDir "+QDir::toNativeSeparators(StartupDir));
-    //QDir::setCurrent(StartupDir);
 
     QString FileToTest="BUILDVERSION.txt";
 
     if (!CheckFolder(FileToTest,QDir::currentPath())
         &&(!CheckFolder(FileToTest,QString("..")+QDir().separator()+QString("..")+QDir().separator()+QString("..")+QDir().separator()+QString("..")+QDir().separator()+ApplicationName))
         &&(!CheckFolder(FileToTest,QString("..")+QDir().separator()+QString("..")+QDir().separator()+QString("..")+QDir().separator()+ApplicationName))
-        #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-            &&(!CheckFolder(FileToTest,"/opt/share/"+ApplicationName))
-            &&(!CheckFolder(FileToTest,"/usr/share/"+ApplicationName))
-        #endif
+        &&(!CheckFolder(FileToTest,"/usr/share/"+ApplicationName))
        ) {
         ToLog(LOGMSG_INFORMATION,QString("Critical error : Impossible to find application directory"));
         exit(1);
@@ -82,11 +78,7 @@ bool SetWorkingPath(char * const argv[],QString ApplicationName) {
 //====================================================================================================================
 
 int main(int argc, char* argv[]) {
-    #if QT_VERSION >= 0x050000
     qInstallMessageHandler(QTMessageOutput);
-    #else
-    qInstallMsgHandler(QTMessageOutput);
-    #endif
 
     ToLog(LOGMSG_INFORMATION,QString("QT Version:%1").arg(qVersion()));
 
@@ -113,27 +105,7 @@ int main(int argc, char* argv[]) {
 
     int     zero=1;
     char    *WM_NAME[]={(char *)APPLICATION_NAME};
-    #if defined(Q_OS_LINUX) || defined(Q_OS_SOLARIS)
-        #if QT_VERSION >= 0x050000
-        #else
-            if (SearchRasterMode()) QApplication::setGraphicsSystem("raster");
-        #endif
-        QApplication app(zero,WM_NAME);
-    #elif defined(Q_OS_WIN)
-        #if QT_VERSION >= 0x050000
-            QApplication app(zero,WM_NAME);
-        #else
-            // Check Windows version and :
-            //      If <Windows/XP then exit application
-            //      If Windows/XP then swith to low fragmentation heap mode
-            //      If >Windows/XP then it's OK
-            // And attach stdio to console if application was started from a console
-            SetLFHeap();
-            QThread::currentThread()->setPriority(QThread::HighestPriority);
-            QApplication::setStyle("Cleanlooks");
-            QApplication app(zero,WM_NAME);
-        #endif
-    #endif
+    QApplication app(zero,WM_NAME);
     app.setApplicationName(APPLICATION_NAME+QString(" ")+CurrentAppVersion);
 
     // Parse parameters to find ForceLanguage and AutoLoad

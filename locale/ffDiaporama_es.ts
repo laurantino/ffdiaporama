@@ -2040,8 +2040,8 @@ Amarillo: el componente funciona parcialmente
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="121"/>
-        <source>LIBAV general version:</source>
-        <translation>LIBAV general version:</translation>
+        <source>FFMPEG version:</source>
+        <translation>FFMPEG version:</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/DlgCheckConfig/DlgCheckConfig.cpp" line="128"/>
@@ -8456,8 +8456,8 @@ Do you want to overwrite it?</source>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="188"/>
         <location filename="../src/ffDiaporama/engine/cDeviceModelDef.cpp" line="728"/>
-        <source>Starting libav...</source>
-        <translation>Iniciando libav...</translation>
+        <source>Starting ffmpeg...</source>
+        <translation>Iniciando ffmpeg...</translation>
     </message>
     <message>
         <location filename="../src/ffDiaporama/MainWindow/mainwindow.cpp" line="280"/>

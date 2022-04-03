@@ -42,8 +42,6 @@ public:
     cFolderTable            *FoldersTable;                              // Folders table on the database
     cFilesTable             *FilesTable;                                // Files table on the database
     cSlideThumbsTable       *SlideThumbsTable;                          // Slide thumbnails table on the database
-    cLocationTable          *LocationTable;                             // Locations table on the database
-
     QStringList             AllowVideoExtension;                        // List of all file extension allowed for video
     QStringList             AllowImageExtension;                        // List of all file extension allowed for image
     QStringList             AllowImageVectorExtension;                  // List of all file extension allowed for image

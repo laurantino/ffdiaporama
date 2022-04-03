@@ -28,7 +28,6 @@ cBaseAppConfig::cBaseAppConfig(QObject *TheTopLevelWindow):QObject(TheTopLevelWi
     FoldersTable    =NULL;
     FilesTable      =NULL;
     SlideThumbsTable=NULL;
-    LocationTable   =NULL;
 }
 
 cBaseAppConfig::~cBaseAppConfig() {
