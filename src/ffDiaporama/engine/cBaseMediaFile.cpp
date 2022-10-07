@@ -830,7 +830,7 @@ bool cImageFile::CheckFormatValide(QWidget *Window) {
         if (Image) {
             delete Image;
         } else {
-            QString ErrorMessage=ErrorMessage+"\n"+QApplication::translate("MainWindow","Impossible to read an image from the file","Error message");
+            QString ErrorMessage=QApplication::translate("MainWindow","Impossible to read an image from the file","Error message");
             CustomMessageBox(Window,QMessageBox::Critical,QApplication::translate("MainWindow","Error","Error message"),ShortName()+"\n\n"+ErrorMessage,QMessageBox::Close);
             IsOk=false;
         }

@@ -116,7 +116,7 @@ void DlgBackgroundProperties::PrepareGlobalUndo() {
 
     Undo=new QDomDocument(APPLICATION_NAME);
     QDomElement root=Undo->createElement("UNDO-DLG");
-    DiaporamaObject->SaveToXML(root,"UNDO-DLG-OBJECT","",NULL,NULL,NULL,false);
+    DiaporamaObject->SaveToXML(root,"UNDO-DLG-OBJECT","",false,NULL,NULL,false);
     Undo->appendChild(root);
 }
 
@@ -134,7 +134,7 @@ void DlgBackgroundProperties::DoGlobalUndo() {
 
 void DlgBackgroundProperties::PreparePartialUndo(int /*ActionType*/,QDomElement root,bool) {
     ToLog(LOGMSG_DEBUGTRACE,"IN:DlgBackgroundProperties::PreparePartialUndo");
-    DiaporamaObject->SaveToXML(root,"UNDO-DLG-OBJECT","",NULL,NULL,NULL,false);
+    DiaporamaObject->SaveToXML(root,"UNDO-DLG-OBJECT","",false,NULL,NULL,false);
 }
 
 //====================================================================================================================

@@ -3130,10 +3130,10 @@ cDiaporamaObjectInfo::cDiaporamaObjectInfo(cDiaporamaObjectInfo *PreviousFrame,i
             }
             // SoundTrackMontage of transition Object
             if ((WantSound)&&(TransitObject)) {
-                if ((PreviousFrame->CurrentObject_Number==TransitObject_Number)) {
+                if (PreviousFrame->CurrentObject_Number==TransitObject_Number) {
                     TransitObject_SoundTrackMontage=PreviousFrame->CurrentObject_SoundTrackMontage;     // Use the same SoundTrackMontage
                     PreviousFrame->CurrentObject_FreeSoundTrackMontage=false;                           // Set tag to not delete previous SoundTrackMontage
-                } else if ((PreviousFrame->TransitObject_Number==TransitObject_Number)) {
+                } else if (PreviousFrame->TransitObject_Number==TransitObject_Number) {
                     TransitObject_SoundTrackMontage=PreviousFrame->TransitObject_SoundTrackMontage;     // Use the same SoundTrackMontage
                     PreviousFrame->TransitObject_FreeSoundTrackMontage=false;                           // Set tag to not delete previous SoundTrackMontage
                 }
@@ -3146,10 +3146,10 @@ cDiaporamaObjectInfo::cDiaporamaObjectInfo(cDiaporamaObjectInfo *PreviousFrame,i
             }
             // Music of transition Object
             if ((WantSound)&&(TransitObject)) {
-                if ((PreviousFrame->CurrentObject_MusicObject==TransitObject_MusicObject)) {
+                if (PreviousFrame->CurrentObject_MusicObject==TransitObject_MusicObject) {
                     TransitObject_MusicTrack=PreviousFrame->CurrentObject_MusicTrack;                   // Use the same SoundTrackMontage
                     PreviousFrame->CurrentObject_FreeMusicTrack=false;                                  // Set tag to not delete previous SoundTrackMontage
-                } else if ((PreviousFrame->TransitObject_MusicObject==TransitObject_MusicObject)) {
+                } else if (PreviousFrame->TransitObject_MusicObject==TransitObject_MusicObject) {
                     TransitObject_MusicTrack=PreviousFrame->TransitObject_MusicTrack;                   // Use the same SoundTrackMontage
                     PreviousFrame->TransitObject_FreeMusicTrack=false;                                  // Set tag to not delete previous SoundTrackMontage
                 }

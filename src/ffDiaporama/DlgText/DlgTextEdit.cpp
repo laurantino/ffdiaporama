@@ -212,7 +212,7 @@ void DlgTextEdit::PrepareGlobalUndo() {
     // Save object before modification for cancel button
     Undo=new QDomDocument(APPLICATION_NAME);
     QDomElement root=Undo->createElement("UNDO-DLG");       // Create xml document and root
-    CurrentTextItem->SaveToXML(root,"UNDO-DLG-OBJECT","",NULL,false,NULL,NULL,true,false);  // Save object
+    CurrentTextItem->SaveToXML(root,"UNDO-DLG-OBJECT","",false,false,NULL,NULL,true,false);  // Save object
     Undo->appendChild(root);                                // Add object to xml document
 }
 
@@ -232,7 +232,7 @@ void DlgTextEdit::DoGlobalUndo() {
 void DlgTextEdit::PreparePartialUndo(int /*ActionType*/,QDomElement root,bool) {
     ToLog(LOGMSG_DEBUGTRACE,"IN:DlgTextEdit::PreparePartialUndo");
 
-    CurrentTextItem->SaveToXML(root,"UNDO-DLG-OBJECT","",NULL,false,NULL,NULL,true,false);  // Save object
+    CurrentTextItem->SaveToXML(root,"UNDO-DLG-OBJECT","",false,false,NULL,NULL,true,false);  // Save object
     root.setAttribute("Position",ui->TextEdit->textCursor().position());
 }
 

@@ -70,7 +70,6 @@ public:
     QImage  GetBackgroundThumb(int Geometry);
 
 private:
-    int         CurrentGeometry;
     QImage      Thumbnail[3];
 };
 
