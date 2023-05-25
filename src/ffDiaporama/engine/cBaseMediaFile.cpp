@@ -908,7 +908,7 @@ bool cImageFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
         // ******************************************************************************************************
         // Try to load EXIF information using library exiv2
         // ******************************************************************************************************
-        Exiv2::Image::AutoPtr ImageFile;
+        std::unique_ptr<Exiv2::Image> ImageFile;
         try {
             ImageFile=Exiv2::ImageFactory::open(FileName().toUtf8().data());
             ExifOk=true;
