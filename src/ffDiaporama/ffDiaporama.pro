@@ -26,6 +26,8 @@ CONFIG += qt thread
 
 QT += widgets concurrent help multimedia core gui xml svg sql
 
+QMAKE_CXXFLAGS_WARN_ON = -Wall -Wno-overloaded-virtual
+
 QMAKE_STRIP  = echo
 APPFOLDER    = ffDiaporama
 TARGET       = ffDiaporama
@@ -45,8 +47,6 @@ LIBS        += -lffDiaporama_lib
 DEFINES +=SHARE_DIR=\\\"$$PREFIX\\\"
 
 LIBS   += -L../ffDiaporama_lib -lswresample -lavformat -lavcodec -lavutil -lswscale -lavfilter -lexiv2
-
-CFLAGS += -W"Missing debug information for"
 
 HARDWARE_PLATFORM = $$system(uname -m)
 contains(HARDWARE_PLATFORM,x86_64) {

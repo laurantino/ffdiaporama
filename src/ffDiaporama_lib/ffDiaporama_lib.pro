@@ -25,6 +25,8 @@ isEmpty(PREFIX) {
 CONFIG   += qt thread
 QT       += core gui svg sql xml widgets concurrent help
 
+QMAKE_CXXFLAGS_WARN_ON = -Wall -Wno-overloaded-virtual
+
 QMAKE_STRIP = echo
 APPFOLDER   = ffDiaporama
 TARGET      = ffDiaporama_lib
