@@ -189,7 +189,7 @@ void cStyleCollection::SetProjectGeometryFilter(ffd_GEOMETRY Geometry) {
 //************************************************
 
 void cStyleCollection::SetImageGeometryFilter(ffd_GEOMETRY ProjectGeometry,int ImageGeometry) {
-    if (ProjectGeometry==-1) {
+    if (ImageGeometry==-1) {
         GeometryFilter=false;
         ActiveFilter  ="";
     } else {

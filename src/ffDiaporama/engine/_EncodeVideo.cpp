@@ -496,9 +496,9 @@ bool cEncodeVideo::OpenAudioStream(sAudioCodecDef *AudioCodecDef,int &AudioChann
     AVDictionary    *opts   =NULL;
 
     // Setup codec parameters
-    AudioCodecCtx->sample_fmt  =AV_SAMPLE_FMT_S16;
-    AudioCodecCtx->channels    =AudioChannels;
-    AudioCodecCtx->sample_rate =AudioSampleRate;
+    AudioCodecCtx->sample_fmt = AV_SAMPLE_FMT_S16;
+    av_channel_layout_default(&AudioCodecCtx->ch_layout, AudioChannels);
+    AudioCodecCtx->sample_rate = AudioSampleRate;
 
     av_dict_set(&AudioStream->metadata,"language",Language.toUtf8().constData(),0);
 
@@ -526,16 +526,12 @@ bool cEncodeVideo::OpenAudioStream(sAudioCodecDef *AudioCodecDef,int &AudioChann
         AudioCodecCtx->sample_fmt =AV_SAMPLE_FMT_FLTP;
     } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AC3) {
         AudioCodecCtx->sample_fmt =AV_SAMPLE_FMT_FLTP;
-    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AMR_NB) {
-        AudioCodecCtx->channels=1;
-        AudioChannels=1;
-    } else if (AudioCodecCtx->codec_id==AV_CODEC_ID_AMR_WB) {
-        AudioCodecCtx->channels=1;
-        AudioChannels=1;
+    } else if ((AudioCodecCtx->codec_id==AV_CODEC_ID_AMR_NB) || (AudioCodecCtx->codec_id==AV_CODEC_ID_AMR_WB)) {
+      AudioCodecCtx->ch_layout = AV_CHANNEL_LAYOUT_MONO;  
+      AudioChannels = 1;
     }
     AudioCodecCtx->bit_rate    =AudioBitrate;
     av_dict_set_int(&opts,"ab",AudioBitrate,0);
-    AudioCodecCtx->channel_layout=(AudioCodecCtx->channels==2?AV_CH_LAYOUT_STEREO:AV_CH_LAYOUT_MONO);
 
     int errcode=avcodec_open2(AudioCodecCtx,AudioCodec,&opts);
     if (errcode<0) {
@@ -651,17 +647,19 @@ bool cEncodeVideo::DoEncode() {
 
     // Init Resampler (if needed)
     if (AudioStream) {
-        if ((AudioCodecCtx->sample_fmt!=RenderMusic.SampleFormat)||(AudioCodecCtx->channels!=RenderMusic.Channels)||(AudioSampleRate!=RenderMusic.SamplingRate)) {
+        if ((AudioCodecCtx->sample_fmt!=RenderMusic.SampleFormat)||(AudioCodecCtx->ch_layout.nb_channels!=RenderMusic.Channels)||(AudioSampleRate!=RenderMusic.SamplingRate)) {
             if (!AudioResampler) {
                 AudioResampler=swr_alloc();
-                av_opt_set_int(AudioResampler,"in_channel_layout",     av_get_default_channel_layout(ToEncodeMusic.Channels),0);
-                av_opt_set_int(AudioResampler,"in_sample_rate",        ToEncodeMusic.SamplingRate,0);
-                av_opt_set_int(AudioResampler,"out_channel_layout",    AudioCodecCtx->channel_layout,0);
-                av_opt_set_int(AudioResampler,"out_sample_rate",       AudioCodecCtx->sample_rate,0);
-                av_opt_set_int(AudioResampler,"in_channel_count",      ToEncodeMusic.Channels,0);
-                av_opt_set_int(AudioResampler,"out_channel_count",     AudioCodecCtx->channels,0);
-                av_opt_set_sample_fmt(AudioResampler,"out_sample_fmt", AudioCodecCtx->sample_fmt,0);
-                av_opt_set_sample_fmt(AudioResampler,"in_sample_fmt",  ToEncodeMusic.SampleFormat,0);
+                AVChannelLayout in_channel_layout;
+                av_channel_layout_default(&in_channel_layout, ToEncodeMusic.Channels);
+                av_opt_set_chlayout(AudioResampler,"in_chlayout",&in_channel_layout,0);
+                av_opt_set_int(AudioResampler,"in_sample_rate",ToEncodeMusic.SamplingRate,0);
+                av_opt_set_chlayout(AudioResampler,"out_chlayout",&AudioCodecCtx->ch_layout,0);
+                av_opt_set_int(AudioResampler,"out_sample_rate",AudioCodecCtx->sample_rate,0);
+                av_opt_set_int(AudioResampler,"in_channel_count",ToEncodeMusic.Channels,0);
+                av_opt_set_int(AudioResampler,"out_channel_count",AudioCodecCtx->ch_layout.nb_channels,0);
+                av_opt_set_sample_fmt(AudioResampler,"out_sample_fmt",AudioCodecCtx->sample_fmt,0);
+                av_opt_set_sample_fmt(AudioResampler,"in_sample_fmt",ToEncodeMusic.SampleFormat,0);
                 if (swr_init(AudioResampler)<0) {
                     ToLog(LOGMSG_CRITICAL,QString("DoEncode: swr_alloc_set_opts failed"));
                     Continue=false;
@@ -827,7 +825,7 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
 
     int         errcode;
     int64_t     DestNbrSamples=ToEncodeMusic->SoundPacketSize/(ToEncodeMusic->Channels*av_get_bytes_per_sample(ToEncodeMusic->SampleFormat));
-    int         DestSampleSize=AudioCodecCtx->channels*av_get_bytes_per_sample(AudioCodecCtx->sample_fmt);
+    int         DestSampleSize=AudioCodecCtx->ch_layout.nb_channels*av_get_bytes_per_sample(AudioCodecCtx->sample_fmt);
     uint8_t    *DestPacket   =NULL;
     int16_t     *PacketSound  =NULL;
     int64_t     DestPacketSize=DestNbrSamples*DestSampleSize;
@@ -841,7 +839,7 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
         } else {
             if (AudioResampler!=NULL) {
                 int out_samples=av_rescale_rnd(swr_get_delay(AudioResampler,ToEncodeMusic->SamplingRate)+DestNbrSamples,AudioCodecCtx->sample_rate,ToEncodeMusic->SamplingRate,AV_ROUND_UP);
-                av_samples_alloc(&AudioResamplerBuffer,NULL,AudioCodecCtx->channels,out_samples,AudioCodecCtx->sample_fmt,0);
+                av_samples_alloc(&AudioResamplerBuffer,NULL,AudioCodecCtx->ch_layout.nb_channels,out_samples,AudioCodecCtx->sample_fmt,0);
                 if (!AudioResamplerBuffer) {
                     ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: AudioResamplerBuffer allocation failed"));
                     Continue=false;
@@ -852,7 +850,7 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
                     ToLog(LOGMSG_CRITICAL,QString("failed in_data fill arrays"));
                     Continue=false;
                 } else {
-                    if (av_samples_fill_arrays(out_data,&out_linesize,AudioResamplerBuffer,AudioCodecCtx->channels,out_samples,AudioCodecCtx->sample_fmt,0)<0) {
+                    if (av_samples_fill_arrays(out_data,&out_linesize,AudioResamplerBuffer,AudioCodecCtx->ch_layout.nb_channels,out_samples,AudioCodecCtx->sample_fmt,0)<0) {
                         ToLog(LOGMSG_CRITICAL,QString("failed out_data fill arrays"));
                         Continue=false;
                     } else {
@@ -877,11 +875,9 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
                 AudioFrame->nb_samples      =DestPacketSize/DestSampleSize;
                 AudioFrame->pts             =av_rescale_q(AudioFrame->nb_samples*AudioFrameNbr,AVR,AudioStream->time_base);
                 AudioFrame->format          =AudioCodecCtx->sample_fmt;
-                AudioFrame->channel_layout  =AudioCodecCtx->channel_layout;
-                AudioFrame->channels        =AudioCodecCtx->channels;
-
+                av_channel_layout_copy(&AudioFrame->ch_layout, &AudioCodecCtx->ch_layout);
                 // fill buffer
-                errcode=avcodec_fill_audio_frame(AudioFrame,AudioCodecCtx->channels,AudioCodecCtx->sample_fmt,(const uint8_t*)DestPacket,DestPacketSize,1);
+                errcode=avcodec_fill_audio_frame(AudioFrame,AudioCodecCtx->ch_layout.nb_channels,AudioCodecCtx->sample_fmt,(const uint8_t*)DestPacket,DestPacketSize,1);
                 if (errcode>=0) {
                     // Init packet
                     AVPacket *pkt = av_packet_alloc();
@@ -922,12 +918,12 @@ void cEncodeVideo::EncodeMusic(cDiaporamaObjectInfo *Frame,cSoundBlockList *Rend
                     LastAudioPts+=IncreasingAudioPts;
                     AudioFrameNbr++;
                     av_packet_free(&pkt);
-                } else {
+               } else {
                     char Buf[2048];
                     av_strerror(errcode,Buf,2048);
                     ToLog(LOGMSG_CRITICAL,QString("EncodeMusic: avcodec_fill_audio_frame() failed: ")+QString(Buf));
                     Continue=false;
-                }
+               }
             }
 
             if ((AudioFrame->extended_data)&&(AudioFrame->extended_data!=AudioFrame->data)) {

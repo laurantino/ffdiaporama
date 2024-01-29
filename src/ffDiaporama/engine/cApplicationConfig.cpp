@@ -120,7 +120,6 @@ cApplicationConfig::cApplicationConfig(QMainWindow *TheTopLevelWindow,QString Th
     // Initialise all variables and set them default value
     ParentWindow            =NULL;
     StartingPath            =QDir::toNativeSeparators(QDir::currentPath());
-    this->ForceLanguage     =ForceLanguage;
     RestoreWindow           =true;                                                         // if true then restore windows size and position
     DisableTooltips         =false;
     RasterMode              =true;                                                         // Enable or disable raster mode [Linux only]

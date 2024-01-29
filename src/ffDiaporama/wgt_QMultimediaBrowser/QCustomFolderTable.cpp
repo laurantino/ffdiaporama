@@ -854,8 +854,8 @@ void QCustomFolderTable::FillListFolder(QString Path) {
     Query.bindValue(":FolderKey",FolderKey,QSql::In);
     if (!Query.exec()) DisplayLastSQLError(&Query); else while (Query.next()) {
         bool Ret=true;
-        qlonglong   FileKey   =Query.value(0).toLongLong(&Ret);         if (!Ret) FileKey=-1;
-        OBJECTTYPE  ObjectType=(OBJECTTYPE)Query.value(1).toInt(&Ret);  if (!Ret) ObjectType=(OBJECTTYPE)-1;
+        qlonglong FileKey = Query.value(0).toLongLong(&Ret); if (!Ret) FileKey = -1;
+        int ObjectType = Query.value(1).toInt(&Ret); if (!Ret) ObjectType = -1;
         if ((FileKey!=-1)&&(ObjectType!=-1)) {
             cBaseMediaFile *MediaObject=NULL;
             switch (ObjectType) {
@@ -873,7 +873,7 @@ void QCustomFolderTable::FillListFolder(QString Path) {
                 case OBJECTTYPE_GMAPSMAP:       break;
             }
             if (MediaObject) {
-                MediaObject->ObjectType=ObjectType;
+                MediaObject->ObjectType=(OBJECTTYPE)ObjectType;
                 MediaObject->FolderKey =FolderKey;
                 MediaObject->FileKey   =FileKey;
                 MediaObject->GetInformationFromFile(MediaObject->FileName(),NULL,NULL,FolderKey);

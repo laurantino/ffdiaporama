@@ -1349,8 +1349,8 @@ void cVideoFile::Reset(OBJECTTYPE TheWantedObjectType) {
     RSC_OutChannels         =2;
     RSC_InSampleRate        =48000;
     RSC_OutSampleRate       =48000;
-    RSC_InChannelLayout     =av_get_default_channel_layout(2);
-    RSC_OutChannelLayout    =av_get_default_channel_layout(2);
+    RSC_InChannelLayout     =AV_CHANNEL_LAYOUT_STEREO;
+    RSC_OutChannelLayout    =AV_CHANNEL_LAYOUT_STEREO;
     RSC_InSampleFmt         =AV_SAMPLE_FMT_S16;
     RSC_OutSampleFmt        =AV_SAMPLE_FMT_S16;
 
@@ -1698,10 +1698,12 @@ bool cVideoFile::GetChildFullInformationFromFile(bool,cCustomIcon *Icon,QStringL
                     case AV_SAMPLE_FMT_DBLP: SampleFMT="-DBLP"; ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"double, planar");           break;
                     default                : SampleFMT="-?";    ExtendedProperties->append(TrackNum+QString("Sample format")+QString("##")+"Unknown");                  break;
                 }
-                if (CodecCtx->channels==1)      ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Mono","Audio channels mode")+SampleFMT);
-                else if (CodecCtx->channels==2) ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Stereo","Audio channels mode")+SampleFMT);
-                else                                                    ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QString("%1").arg(CodecCtx->channels)+SampleFMT);
-
+                if (CodecCtx->ch_layout.nb_channels==1)
+                  ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Mono","Audio channels mode")+SampleFMT);
+                else if (CodecCtx->ch_layout.nb_channels==2)
+                  ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QApplication::translate("cBaseMediaFile","Stereo","Audio channels mode")+SampleFMT);
+                else
+                  ExtendedProperties->append(TrackNum+QString("Channels")+QString("##")+QString("%1").arg(CodecCtx->ch_layout.nb_channels)+SampleFMT);
                 // Frequency
                 if (int(CodecCtx->sample_rate/1000)*1000>0) {
                     if (int(CodecCtx->sample_rate/1000)*1000==CodecCtx->sample_rate)
@@ -2092,34 +2094,30 @@ void cVideoFile::CloseResampler() {
 }
 
 //*********************************************************************************************************************
-
-void cVideoFile::CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleFormat RSC_InSampleFmt,AVSampleFormat RSC_OutSampleFmt,int RSC_InSampleRate,int RSC_OutSampleRate,uint64_t RSC_InChannelLayout,uint64_t RSC_OutChannelLayout) {
-    if (RSC_InChannelLayout==0)  RSC_InChannelLayout =av_get_default_channel_layout(RSC_InChannels);
-    if (RSC_OutChannelLayout==0) RSC_OutChannelLayout=av_get_default_channel_layout(RSC_OutChannels);
+void cVideoFile::CheckResampler(int RSC_InChannels,int RSC_OutChannels,AVSampleFormat RSC_InSampleFmt,AVSampleFormat RSC_OutSampleFmt,int RSC_InSampleRate,int RSC_OutSampleRate,AVChannelLayout RSC_InChannelLayout,AVChannelLayout RSC_OutChannelLayout) {
     if ((RSC!=NULL)&&
         ( (RSC_InChannels!=this->RSC_InChannels)    ||(RSC_OutChannels!=this->RSC_OutChannels)
         ||(RSC_InSampleFmt!=this->RSC_InSampleFmt)  ||(RSC_OutSampleFmt!=this->RSC_OutSampleFmt)
         ||(RSC_InSampleRate!=this->RSC_InSampleRate)||(RSC_OutSampleRate!=this->RSC_OutSampleRate)
-        ||(RSC_InChannelLayout!=this->RSC_InChannelLayout)||(RSC_OutChannelLayout!=this->RSC_OutChannelLayout)
        )) CloseResampler();
     if (!RSC) {
-        this->RSC_InChannels   =RSC_InChannels;
-        this->RSC_OutChannels  =RSC_OutChannels;
-        this->RSC_InSampleFmt  =RSC_InSampleFmt;
-        this->RSC_OutSampleFmt =RSC_OutSampleFmt;
-        this->RSC_InSampleRate =RSC_InSampleRate;
+        this->RSC_InChannels=RSC_InChannels;
+        this->RSC_OutChannels=RSC_OutChannels;
+        this->RSC_InSampleFmt=RSC_InSampleFmt;
+        this->RSC_OutSampleFmt=RSC_OutSampleFmt;
+        this->RSC_InSampleRate=RSC_InSampleRate;
         this->RSC_OutSampleRate=RSC_OutSampleRate;
-        this->RSC_InChannelLayout =RSC_InChannelLayout;
-        this->RSC_OutChannelLayout=RSC_OutChannelLayout;
+        av_channel_layout_copy(&this->RSC_InChannelLayout, &RSC_InChannelLayout);
+        av_channel_layout_copy(&this->RSC_OutChannelLayout, &RSC_OutChannelLayout);
         RSC=swr_alloc();
-        av_opt_set_int(RSC,"in_channel_layout",     RSC_InChannelLayout, 0);
-        av_opt_set_int(RSC,"in_sample_rate",        RSC_InSampleRate,    0);
-        av_opt_set_int(RSC,"out_channel_layout",    RSC_OutChannelLayout,0);
-        av_opt_set_int(RSC,"out_sample_rate",       RSC_OutSampleRate,   0);
-        av_opt_set_int(RSC,"in_channel_count",      RSC_InChannels,      0);
-        av_opt_set_int(RSC,"out_channel_count",     RSC_OutChannels,     0);
-        av_opt_set_sample_fmt(RSC,"in_sample_fmt",  RSC_InSampleFmt,     0);
-        av_opt_set_sample_fmt(RSC,"out_sample_fmt", RSC_OutSampleFmt,    0);
+        av_opt_set_chlayout(RSC,"in_chlayout",&this->RSC_InChannelLayout,0);
+        av_opt_set_int(RSC,"in_sample_rate",RSC_InSampleRate,0);
+        av_opt_set_chlayout(RSC,"out_chlayout",&this->RSC_OutChannelLayout,0);
+        av_opt_set_int(RSC,"out_sample_rate",RSC_OutSampleRate,0);
+        av_opt_set_int(RSC,"in_channel_count",RSC_InChannels,0);
+        av_opt_set_int(RSC,"out_channel_count",RSC_OutChannels,0);
+        av_opt_set_sample_fmt(RSC,"in_sample_fmt",RSC_InSampleFmt,0);
+        av_opt_set_sample_fmt(RSC,"out_sample_fmt",RSC_OutSampleFmt,0);
         if ((RSC)&&(swr_init(RSC)<0)) {
             ToLog(LOGMSG_CRITICAL,QString("CheckResampler: swr_init failed"));
             swr_free(&RSC);
@@ -2350,9 +2348,9 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
     //================================================
 
     if (AudioContext.ContinueAudio) {
-        AudioContext.NeedResampling=((AudioContext.AudioStream->codecpar->format !=AV_SAMPLE_FMT_S16)||
-                                     (AudioContext.AudioStream->codecpar->channels   !=SoundTrackBloc->Channels)||
-                                     (AudioContext.AudioStream->codecpar->sample_rate!=SoundTrackBloc->SamplingRate));
+        AudioContext.NeedResampling=((AudioContext.AudioStream->codecpar->format != AV_SAMPLE_FMT_S16)||
+                                     (AudioContext.AudioStream->codecpar->ch_layout.nb_channels != SoundTrackBloc->Channels)||
+                                     (AudioContext.AudioStream->codecpar->sample_rate != SoundTrackBloc->SamplingRate));
 
         // Calc if we need to seek to a position
         int64_t Start =SoundTrackBloc->CurrentPosition;
@@ -2372,11 +2370,13 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
         // Prepare resampler
         if ((AudioContext.ContinueAudio)&&(AudioContext.NeedResampling)) {
             if (!ResamplingContinue) CloseResampler();
-            CheckResampler(AudioContext.AudioStream->codecpar->channels,SoundTrackBloc->Channels,
+            AVChannelLayout out_channel_layout;
+            av_channel_layout_default(&out_channel_layout, SoundTrackBloc->Channels);
+            CheckResampler(AudioContext.AudioStream->codecpar->ch_layout.nb_channels,SoundTrackBloc->Channels,
                            (AVSampleFormat)AudioContext.AudioStream->codecpar->format,SoundTrackBloc->SampleFormat,
                            AudioContext.AudioStream->codecpar->sample_rate,SoundTrackBloc->SamplingRate,
-                           AudioContext.AudioStream->codecpar->channel_layout,
-                           av_get_default_channel_layout(SoundTrackBloc->Channels));
+                           AudioContext.AudioStream->codecpar->ch_layout,
+                           out_channel_layout);
         }
     }
 
@@ -2579,14 +2579,11 @@ QImage *cVideoFile::ReadFrame(bool PreviewMode,int64_t Position,bool DontUseEndP
                                             FreeFrames=false;
                                             int ToIns=0;
                                             while ((ToIns<CacheImage.count())&&(CacheImage[ToIns]->Position<ObjImage->Position)) ToIns++;
-                                            if (ToIns<CacheImage.count()) {
+                                            if (ToIns<CacheImage.count())
                                                 CacheImage.insert(ToIns,ObjImage);
-                                                ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : Insert image %1 for position %2 (FramePosition=%3) - Key:%4 PTS:%5 Num:%6").arg(FrameBufferYUVPosition).arg(Position).arg(VideoFramePosition).arg(FrameBufferYUV->key_frame).arg(FrameBufferYUV->pts).arg(FrameBufferYUV->coded_picture_number));
-                                            } else {
+                                            else
                                                 CacheImage.append(ObjImage);
-                                                ToLog(LOGMSG_DEBUGTRACE,QString("IN:cVideoFile::ReadFrame : Append image %1 for position %2 (FramePosition=%3) - Key:%4 PTS:%5 Num:%6").arg(FrameBufferYUVPosition).arg(Position).arg(VideoFramePosition).arg(FrameBufferYUV->key_frame).arg(FrameBufferYUV->pts).arg(FrameBufferYUV->coded_picture_number));
-                                            }
-    
+                                                
                                             // Count number of image > position
                                             int Nbr=0;
                                             for (int CNbr=0;CNbr<CacheImage.count();CNbr++) if ((CacheImage[CNbr]->Position>=Position)&&(CacheImage[CNbr]->Position-Position<ALLOWEDDELTA)) Nbr++;
@@ -2703,7 +2700,7 @@ void cVideoFile::DecodeAudioFrame(sAudioContext *AudioContext,qreal *FramePts,AV
         Data=Resample(Frame,&SizeDecoded,AudioContext->DstSampleSize);
     } else {
         Data=Frame->data[0];
-        SizeDecoded=Frame->nb_samples*av_get_bytes_per_sample((AVSampleFormat)AudioContext->AudioStream->codecpar->format)*AudioContext->AudioStream->codecpar->channels;
+        SizeDecoded=Frame->nb_samples*av_get_bytes_per_sample((AVSampleFormat)AudioContext->AudioStream->codecpar->format)*AudioContext->AudioStream->codecpar->ch_layout.nb_channels;
     }
     AudioContext->ContinueAudio=(Data!=NULL);
     if (AudioContext->ContinueAudio) {

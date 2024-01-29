@@ -205,7 +205,6 @@ void cCustomShotTable::mouseMoveEvent(QMouseEvent *event) {
         int ThumbWidth =columnWidth(0);
         int NbrX       =width()/ThumbWidth;
         int NbrY       =height()/ThumbHeight;  if (NbrY>rowCount()) NbrY=rowCount();
-        int ToUse      =DragItemDest; if (DragItemDest==columnCount()) ToUse--;
 
         // Try to scroll left
         if ((event->pos().x()<0)&&(horizontalScrollBar()->value()>0)) horizontalScrollBar()->setValue(horizontalScrollBar()->value()-1);
